@@ -7,19 +7,22 @@ else()
     set(additionalLib "")
 endif()
 
-add_executable(listener_unit_tests
-    testListener.cpp
-    ../Listener.cpp)
+if(C2CORE_BUILD_TESTS)
+    add_executable(listener_unit_tests
+        testListener.cpp
+        ../Listener.cpp)
 
-target_link_libraries(listener_unit_tests
-    nlohmann_json::nlohmann_json
-    c2_base64
-    ${additionalLib})
+    target_link_libraries(listener_unit_tests
+        nlohmann_json::nlohmann_json
+        c2_base64
+        ${additionalLib})
 
-add_test(NAME listener_unit_tests COMMAND listener_unit_tests)
+    add_test(NAME listener_unit_tests COMMAND listener_unit_tests)
+endif()
 
 # Manual smoke executables for transport variants. They are built with the test
 # suite but are not registered in CTest because they only validate construction.
+if(C2CORE_BUILD_TESTS OR C2CORE_BUILD_FUNCTIONAL_TESTS)
 add_executable(testListenerDns
     testListenerDns.cpp
     ../Listener.cpp
@@ -49,3 +52,19 @@ add_executable(testListenerTcp
     ../Listener.cpp
     ../ListenerTcp.cpp)
 target_link_libraries(testListenerTcp nlohmann_json::nlohmann_json SocketHandler c2_base64 ${additionalLib})
+
+if(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    add_test(NAME testListenerDnsFunctional COMMAND testListenerDns)
+    if(TARGET testListenerGithub)
+        add_test(NAME testListenerGithubFunctional COMMAND testListenerGithub)
+        set_tests_properties(testListenerGithubFunctional PROPERTIES LABELS "functional;transport;listener")
+    endif()
+    add_test(NAME testListenerSmbFunctional COMMAND testListenerSmb)
+    add_test(NAME testListenerTcpFunctional COMMAND testListenerTcp)
+    set_tests_properties(
+        testListenerDnsFunctional
+        testListenerSmbFunctional
+        testListenerTcpFunctional
+        PROPERTIES LABELS "functional;transport;listener")
+endif()
+endif()

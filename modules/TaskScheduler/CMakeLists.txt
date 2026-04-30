@@ -19,3 +19,17 @@ if(C2CORE_BUILD_TESTS)
 
     add_test(NAME testsTaskScheduler COMMAND "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsTaskScheduler>")
 endif()
+
+if(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    add_executable(testsTaskSchedulerFunctional tests/functional/testsTaskSchedulerFunctional.cpp TaskScheduler.cpp)
+    target_include_directories(testsTaskSchedulerFunctional PRIVATE ../tests)
+    if (WIN32)
+        target_compile_definitions(testsTaskSchedulerFunctional PRIVATE _WIN32_WINNT=0x0601)
+        target_link_libraries(testsTaskSchedulerFunctional PRIVATE Taskschd)
+    endif()
+    add_custom_command(TARGET testsTaskSchedulerFunctional POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
+    $<TARGET_FILE:testsTaskSchedulerFunctional> "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsTaskSchedulerFunctional>")
+
+    add_test(NAME testsTaskSchedulerFunctional COMMAND "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsTaskSchedulerFunctional>")
+    set_tests_properties(testsTaskSchedulerFunctional PROPERTIES LABELS "functional;taskscheduler;windows-network" SKIP_RETURN_CODE 77)
+endif()

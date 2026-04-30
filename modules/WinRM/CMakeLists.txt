@@ -18,3 +18,16 @@ if(C2CORE_BUILD_TESTS)
 
     add_test(NAME testsWinRM COMMAND "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsWinRM>")
 endif()
+
+if(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    add_executable(testsWinRMFunctional tests/functional/testsWinRMFunctional.cpp WinRM.cpp)
+    target_include_directories(testsWinRMFunctional PRIVATE ../tests)
+    if(WIN32)
+        target_link_libraries(testsWinRMFunctional PRIVATE WsmSvc)
+    endif()
+    add_custom_command(TARGET testsWinRMFunctional POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
+    $<TARGET_FILE:testsWinRMFunctional> "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsWinRMFunctional>")
+
+    add_test(NAME testsWinRMFunctional COMMAND "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsWinRMFunctional>")
+    set_tests_properties(testsWinRMFunctional PROPERTIES LABELS "functional;winrm;windows-network" SKIP_RETURN_CODE 77)
+endif()

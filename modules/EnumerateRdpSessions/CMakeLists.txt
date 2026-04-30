@@ -19,3 +19,17 @@ if(C2CORE_BUILD_TESTS)
 
     add_test(NAME testsEnumerateRdpSessions COMMAND "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsEnumerateRdpSessions>")
 endif()
+
+if(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    add_executable(testsEnumerateRdpSessionsFunctional tests/functional/testsEnumerateRdpSessionsFunctional.cpp EnumerateRdpSessions.cpp)
+    target_include_directories(testsEnumerateRdpSessionsFunctional PRIVATE ../tests)
+    if (WIN32)
+        target_compile_definitions(testsEnumerateRdpSessionsFunctional PRIVATE _WIN32_WINNT=0x0601)
+        target_link_libraries(testsEnumerateRdpSessionsFunctional PRIVATE Wtsapi32)
+    endif()
+    add_custom_command(TARGET testsEnumerateRdpSessionsFunctional POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
+        $<TARGET_FILE:testsEnumerateRdpSessionsFunctional> "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsEnumerateRdpSessionsFunctional>")
+
+    add_test(NAME testsEnumerateRdpSessionsFunctional COMMAND "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsEnumerateRdpSessionsFunctional>")
+    set_tests_properties(testsEnumerateRdpSessionsFunctional PROPERTIES LABELS "functional;rdp;windows-network" SKIP_RETURN_CODE 77)
+endif()

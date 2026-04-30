@@ -18,3 +18,16 @@ if(C2CORE_BUILD_TESTS)
 
     add_test(NAME testsCimExec COMMAND "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsCimExec>")
 endif()
+
+if(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    add_executable(testsCimExecFunctional tests/functional/testsCimExecFunctional.cpp CimExec.cpp)
+    target_include_directories(testsCimExecFunctional PRIVATE ../tests)
+    if(WIN32)
+        target_link_libraries(testsCimExecFunctional PRIVATE mi)
+    endif()
+    add_custom_command(TARGET testsCimExecFunctional POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
+    $<TARGET_FILE:testsCimExecFunctional> "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsCimExecFunctional>")
+
+    add_test(NAME testsCimExecFunctional COMMAND "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsCimExecFunctional>")
+    set_tests_properties(testsCimExecFunctional PROPERTIES LABELS "functional;cim;windows-network" SKIP_RETURN_CODE 77)
+endif()
