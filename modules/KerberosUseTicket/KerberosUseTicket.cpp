@@ -3,10 +3,8 @@
 #include <cstring>
 
 #include "Common.hpp"
-#include "Tools.hpp"
 
 #ifdef __linux__
-
 #elif _WIN32
 #include <windows.h>
 #include <ntsecapi.h>

