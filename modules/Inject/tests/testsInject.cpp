@@ -3,13 +3,135 @@
 
 #include <filesystem>
 #include <iostream>
+#include <string>
 #include <vector>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 using namespace test_helpers;
+
+namespace
+{
+std::string dummyExePath()
+{
+#ifdef C2_INJECT_DUMMY_EXE
+    return C2_INJECT_DUMMY_EXE;
+#else
+    return {};
+#endif
+}
+
+bool expectInjectMessage(const C2Message& message,
+                         const std::filesystem::path& expectedInput,
+                         int expectedPid,
+                         const std::string& expectedCmdPart,
+                         const std::string& label)
+{
+    bool ok = true;
+    ok &= expect(message.instruction() == "inject", label + ": instruction should be set");
+    ok &= expect(message.inputfile() == expectedInput.string(), label + ": input file should be packed");
+    ok &= expect(message.pid() == expectedPid, label + ": pid should be packed");
+    ok &= expect(message.cmd().find(expectedCmdPart) != std::string::npos, label + ": original command tail should be packed");
+    ok &= expect(!message.data().empty(), label + ": payload should be non-empty");
+    return ok;
+}
+
+#ifdef _WIN32
+class ChildProcess
+{
+public:
+    explicit ChildProcess(const std::string& exePath)
+    {
+        STARTUPINFOA startupInfo{};
+        startupInfo.cb = sizeof(startupInfo);
+
+        std::string commandLine = "\"" + exePath + "\" --sleep";
+        std::vector<char> commandLineBuffer(commandLine.begin(), commandLine.end());
+        commandLineBuffer.push_back('\0');
+
+        PROCESS_INFORMATION processInfo{};
+        if (CreateProcessA(exePath.c_str(),
+                           commandLineBuffer.data(),
+                           nullptr,
+                           nullptr,
+                           FALSE,
+                           CREATE_NO_WINDOW,
+                           nullptr,
+                           nullptr,
+                           &startupInfo,
+                           &processInfo))
+        {
+            m_process = processInfo.hProcess;
+            m_thread = processInfo.hThread;
+            m_pid = static_cast<int>(processInfo.dwProcessId);
+        }
+    }
+
+    ChildProcess(const ChildProcess&) = delete;
+    ChildProcess& operator=(const ChildProcess&) = delete;
+
+    ~ChildProcess()
+    {
+        terminate();
+        if (m_thread != nullptr)
+        {
+            CloseHandle(m_thread);
+        }
+        if (m_process != nullptr)
+        {
+            CloseHandle(m_process);
+        }
+    }
+
+    bool started() const
+    {
+        return m_process != nullptr && m_pid > 0;
+    }
+
+    int pid() const
+    {
+        return m_pid;
+    }
+
+    void terminate()
+    {
+        if (m_process != nullptr && WaitForSingleObject(m_process, 0) == WAIT_TIMEOUT)
+        {
+            TerminateProcess(m_process, 0);
+            WaitForSingleObject(m_process, 3000);
+        }
+    }
+
+private:
+    HANDLE m_process = nullptr;
+    HANDLE m_thread = nullptr;
+    int m_pid = -1;
+};
+
+std::string endlessLoopPayload()
+{
+#if defined(_M_ARM64) || defined(__aarch64__)
+    const char payload[] = {
+        static_cast<char>(0x00),
+        static_cast<char>(0x00),
+        static_cast<char>(0x00),
+        static_cast<char>(0x14)
+    };
+#else
+    const char payload[] = {static_cast<char>(0xEB), static_cast<char>(0xFE)};
+#endif
+    return std::string(payload, sizeof(payload));
+}
+#endif
+}
 
 int main()
 {
     bool ok = true;
+    const std::string dummyExe = dummyExePath();
 
     {
         Inject module;
@@ -30,18 +152,130 @@ int main()
     }
 
     {
+        Inject module;
+        std::vector<std::string> cmd = {"inject"};
+        C2Message message;
+
+        ok &= expect(module.init(cmd, message) == -1, "missing parameters should be rejected");
+    }
+
+    {
+        Inject module;
+        std::vector<std::string> cmd = {"inject", "-x", "payload.bin", "1234"};
+        C2Message message;
+
+        ok &= expect(module.init(cmd, message) == -1, "unknown payload option should be rejected");
+        ok &= expect(message.returnvalue().find("One of the tags") != std::string::npos, "unknown payload option should explain accepted tags");
+    }
+
+    {
+        Inject module;
+        std::vector<std::string> cmd = {"inject", "-d", "payload.dll", "1234"};
+        C2Message message;
+
+        ok &= expect(module.init(cmd, message) == -1, "DLL mode without method should be rejected");
+        ok &= expect(message.returnvalue().find("Method is mandatory") != std::string::npos, "DLL mode should explain missing method");
+    }
+
+    {
+        const auto raw = writeTempFile("c2core_inject_empty_raw.bin", "");
+        Inject module;
+        std::vector<std::string> cmd = {"inject", "-r", raw.string(), "1234"};
+        C2Message message;
+
+        ok &= expect(module.init(cmd, message) == -1, "empty raw shellcode file should be rejected");
+        ok &= expect(message.returnvalue().find("Payload empty") != std::string::npos, "empty payload error should explain the failure");
+        std::filesystem::remove(raw);
+    }
+
+    {
         const auto raw = writeTempFile("c2core_inject_raw.bin", "raw-bytes");
         Inject module;
         std::vector<std::string> cmd = {"inject", "-r", raw.string(), "-1"};
         C2Message message;
 
         ok &= expect(module.init(cmd, message) == 0, "existing raw shellcode file should be accepted");
-        ok &= expect(message.instruction() == "inject", "instruction should be set");
-        ok &= expect(message.pid() == -1, "pid should be packed");
-        ok &= expect(message.inputfile() == raw.string(), "input file should be packed");
+        ok &= expectInjectMessage(message, raw, -1, "-r", "raw shellcode with spawn pid");
         ok &= expect(message.data() == "raw-bytes", "raw bytes should be packed");
         std::filesystem::remove(raw);
     }
+
+    {
+        const auto raw = writeTempFile("c2core_inject_raw_positive_pid.bin", "pid-bytes");
+        Inject module;
+        std::vector<std::string> cmd = {"inject", "-r", raw.string(), "4321"};
+        C2Message message;
+
+        ok &= expect(module.init(cmd, message) == 0, "raw shellcode with positive pid should be accepted");
+        ok &= expectInjectMessage(message, raw, 4321, "4321", "raw shellcode with explicit pid");
+        ok &= expect(message.data() == "pid-bytes", "positive pid raw bytes should be packed");
+        std::filesystem::remove(raw);
+    }
+
+#ifdef _WIN32
+    if (dummyExe.empty())
+    {
+        ok &= expect(false, "dummy exe path should be provided by CMake");
+    }
+    else
+    {
+        const std::filesystem::path dummyPath(dummyExe);
+        ok &= expect(std::filesystem::exists(dummyPath), "dummy exe should exist before Donut and process tests");
+
+        {
+            Inject module;
+            std::vector<std::string> cmd = {"inject", "-e", dummyPath.string(), "1234", "alpha", "beta gamma"};
+            C2Message message;
+
+            ok &= expect(module.init(cmd, message) == 0, "dummy exe should be accepted by Donut EXE mode");
+            ok &= expectInjectMessage(message, dummyPath, 1234, "alpha beta gamma", "dummy exe Donut mode with args");
+        }
+
+        {
+            Inject module;
+            C2Message message;
+            message.set_pid(2147483647);
+            message.set_data(endlessLoopPayload());
+            C2Message retMessage;
+
+            ok &= expect(module.process(message, retMessage) == 0, "process should return normally for an invalid pid");
+            ok &= expect(retMessage.returnvalue() == "OpenProcess failed.", "invalid pid should report OpenProcess failure");
+        }
+
+        {
+            Inject module;
+            nlohmann::json config;
+            config["process"] = "Z:\\c2core_missing_inject_target.exe";
+            config["syscall"] = true;
+            ok &= expect(module.initConfig(config) == 0, "initConfig should accept process and syscall settings");
+
+            C2Message message;
+            message.set_pid(-1);
+            message.set_data(endlessLoopPayload());
+            C2Message retMessage;
+
+            ok &= expect(module.process(message, retMessage) == 0, "spawn injection failure path should return normally");
+            ok &= expect(retMessage.returnvalue() == "CreateProcess failed.", "invalid spawn target should report CreateProcess failure");
+        }
+
+        {
+            ChildProcess target(dummyPath.string());
+            ok &= expect(target.started(), "dummy target process should start");
+
+            if (target.started())
+            {
+                Inject module;
+                C2Message message;
+                message.set_pid(target.pid());
+                message.set_data(endlessLoopPayload());
+                C2Message retMessage;
+
+                ok &= expect(module.process(message, retMessage) == 0, "process should return normally for a live dummy pid");
+                ok &= expect(retMessage.returnvalue() == "Process injected.", "live dummy pid should report injection success");
+            }
+        }
+    }
+#endif
 
     return ok ? 0 : 1;
 }

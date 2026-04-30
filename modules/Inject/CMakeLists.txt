@@ -29,9 +29,13 @@ $<TARGET_FILE:Inject> "${C2_RUNTIME_MODULE_OUTPUT_DIR}/$<TARGET_FILE_NAME:Inject
 
 if(C2CORE_BUILD_TESTS)
     if(WIN32)
-       add_executable(testsInject tests/testsInject.cpp Inject.cpp ../ModuleCmd/syscall.cpp ${SYSCALL_OBJ})
+        add_executable(dummyInject tests/dummyInject.cpp)
+
+        add_executable(testsInject tests/testsInject.cpp Inject.cpp ../ModuleCmd/syscall.cpp ${SYSCALL_OBJ})
         target_link_libraries(testsInject PRIVATE Donut )
         c2core_disable_safeseh_for_x86(testsInject)
+        add_dependencies(testsInject dummyInject)
+        target_compile_definitions(testsInject PRIVATE C2_INJECT_DUMMY_EXE="$<TARGET_FILE:dummyInject>")
     else()
         add_executable(testsInject tests/testsInject.cpp Inject.cpp)
         target_link_libraries(testsInject PRIVATE Donut ${aplib64} )
