@@ -17,7 +17,29 @@ $<TARGET_FILE:DotnetExec> "${C2_RUNTIME_MODULE_OUTPUT_DIR}/$<TARGET_FILE_NAME:Do
 
 if(C2CORE_BUILD_TESTS)
     if(WIN32)
+        find_program(C2_CSC_EXECUTABLE
+            NAMES csc.exe
+            HINTS
+                "$ENV{ProgramFiles}/Microsoft Visual Studio/2022/Enterprise/MSBuild/Current/Bin/Roslyn"
+                "$ENV{ProgramFiles}/Microsoft Visual Studio/2022/Professional/MSBuild/Current/Bin/Roslyn"
+                "$ENV{ProgramFiles}/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/Roslyn"
+                "$ENV{ProgramFiles}/Microsoft Visual Studio/2022/BuildTools/MSBuild/Current/Bin/Roslyn")
+
+        if(C2_CSC_EXECUTABLE)
+            set(C2_DOTNETEXEC_DUMMY_EXE "${CMAKE_CURRENT_BINARY_DIR}/DummyDotnetExec.exe")
+            add_custom_command(
+                OUTPUT "${C2_DOTNETEXEC_DUMMY_EXE}"
+                COMMAND "${C2_CSC_EXECUTABLE}" /nologo /target:exe /platform:anycpu "/out:${C2_DOTNETEXEC_DUMMY_EXE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/DummyDotnetExec.cs"
+                DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/DummyDotnetExec.cs"
+                VERBATIM)
+            add_custom_target(dummyDotnetExecAssembly DEPENDS "${C2_DOTNETEXEC_DUMMY_EXE}")
+        endif()
+
         add_executable(testsDotnetExec tests/testsDotnetExec.cpp DotnetExec.cpp HostControl.cpp AssemblyManager.cpp AssemblyStore.cpp HostMalloc.cpp MemoryManager.cpp ../ModuleCmd/syscall.cpp ${SYSCALL_OBJ} tests/project.rc)
+        if(C2_CSC_EXECUTABLE)
+            add_dependencies(testsDotnetExec dummyDotnetExecAssembly)
+            target_compile_definitions(testsDotnetExec PRIVATE C2_DOTNETEXEC_DUMMY_EXE="${C2_DOTNETEXEC_DUMMY_EXE}")
+        endif()
     else()
         add_executable(testsDotnetExec tests/testsDotnetExec.cpp DotnetExec.cpp)
     endif()

@@ -487,12 +487,13 @@ int DotnetExec::initCLR()
         SIZE_T dwSize = 1024;
         Sw3NtProtectVirtualMemory_(hProcess, &pEventWrite, &dwSize, PAGE_READWRITE, &oldprotect);
 
-        #ifdef _WIN64
-            // memcpy(pEventWrite, "\x48\x33\xc0\xc3", 4);         // xor rax, rax; ret
+        #if defined(_M_ARM64) || defined(__aarch64__)
+            char patch[] = "\x00\x00\x80\x52\xc0\x03\x5f\xd6"; // mov w0, #0; ret
+            int patchSize = 8;
+        #elif defined(_WIN64)
             char patch[] = "\x48\x33\xc0\xc3"; // xor rax, rax; ret
             int patchSize = 4;
         #else
-            // memcpy(pEventWrite, "\x33\xc0\xc2\x14\x00", 5);        // xor eax, eax; ret 14
             char patch[] = "\x33\xc0\xc2\x14\x00"; // xor eax, eax; ret 14
             int patchSize = 5;
         #endif
