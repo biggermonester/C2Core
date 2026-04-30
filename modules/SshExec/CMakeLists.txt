@@ -32,3 +32,20 @@ if(C2CORE_BUILD_TESTS)
         $<TARGET_FILE:testsSshExec> "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsSshExec>")
     add_test(NAME testsSshExec COMMAND "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsSshExec>")
 endif()
+
+if(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    add_executable(testsSshExecFunctional tests/functional/testsSshExecFunctional.cpp SshExec.cpp)
+    target_include_directories(testsSshExecFunctional PRIVATE ../tests)
+    target_link_libraries(testsSshExecFunctional PRIVATE Libssh2::libssh2)
+    if (WIN32)
+        target_link_libraries(testsSshExecFunctional PRIVATE
+            ws2_32
+            crypt32
+            bcrypt
+        )
+    endif()
+    add_custom_command(TARGET testsSshExecFunctional POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
+        $<TARGET_FILE:testsSshExecFunctional> "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsSshExecFunctional>")
+    add_test(NAME testsSshExecFunctional COMMAND "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsSshExecFunctional>")
+    set_tests_properties(testsSshExecFunctional PROPERTIES LABELS "functional;ssh;network" SKIP_RETURN_CODE 77)
+endif()

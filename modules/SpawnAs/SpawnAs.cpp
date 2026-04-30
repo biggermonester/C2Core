@@ -238,7 +238,7 @@ SpawnAs::Options SpawnAs::unpackParameters(const std::string& data) const
 
 int SpawnAs::init(std::vector<std::string> &splitedCmd, C2Message &c2Message)
 {
-#if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS)
+#if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS) || defined(C2CORE_BUILD_FUNCTIONAL_TESTS)
     auto regroupedCmd = regroupStrings(splitedCmd);
 
     if (regroupedCmd.size() < 4)
@@ -700,7 +700,7 @@ int SpawnAs::process(C2Message &c2Message, C2Message &c2RetMessage)
 
 int SpawnAs::errorCodeToMsg(const C2Message &c2RetMessage, std::string &errorMsg)
 {
-#if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS)
+#if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS) || defined(C2CORE_BUILD_FUNCTIONAL_TESTS)
     if (c2RetMessage.errorCode() > 0)
     {
         errorMsg = c2RetMessage.returnvalue();

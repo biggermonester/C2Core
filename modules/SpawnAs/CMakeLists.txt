@@ -22,3 +22,20 @@ $<TARGET_FILE:testsSpawnAs> "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsS
 
 add_test(NAME testsSpawnAs COMMAND "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsSpawnAs>")
 endif()
+
+if(C2CORE_BUILD_FUNCTIONAL_TESTS)
+add_executable(testsSpawnAsFunctional tests/functional/testsSpawnAsFunctional.cpp SpawnAs.cpp)
+target_include_directories(testsSpawnAsFunctional PRIVATE ../tests)
+
+if(WIN32)
+    target_link_libraries(testsSpawnAsFunctional advapi32 userenv)
+else()
+    target_link_libraries(testsSpawnAsFunctional ${aplib64} )
+endif()
+
+add_custom_command(TARGET testsSpawnAsFunctional POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
+$<TARGET_FILE:testsSpawnAsFunctional> "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsSpawnAsFunctional>")
+
+add_test(NAME testsSpawnAsFunctional COMMAND "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsSpawnAsFunctional>")
+set_tests_properties(testsSpawnAsFunctional PROPERTIES LABELS "functional;spawnas;windows-local" SKIP_RETURN_CODE 77)
+endif()

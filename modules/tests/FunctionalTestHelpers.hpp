@@ -130,7 +130,7 @@ int runModuleScenario(const char* testName, Module& module, std::vector<std::str
 
     C2Message result;
     module.process(message, result);
-    if (result.errorCode() != 0)
+    if (result.errorCode() > 0)
     {
         std::string error;
         module.errorCodeToMsg(result, error);
