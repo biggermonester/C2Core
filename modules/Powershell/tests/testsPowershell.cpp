@@ -1,143 +1,140 @@
 #include "../Powershell.hpp"
+#include "../../tests/TestHelpers.hpp"
 
-#include <fstream>
+#include <filesystem>
+#include <iostream>
+#include <string>
+#include <vector>
 
-#ifdef __linux__
-#elif _WIN32
-#include <windows.h>
-#endif
+using namespace test_helpers;
 
-bool testPowershell();
+namespace
+{
+bool expectBaseMessage(const C2Message& message,
+                       const std::string& expectedCmd,
+                       const std::string& label)
+{
+    bool ok = true;
+    ok &= expect(message.instruction() == "powershell", label + ": instruction should be set");
+    ok &= expect(message.cmd() == expectedCmd, label + ": command tail should be packed");
+    return ok;
+}
+
+bool expectContains(const std::string& text, const std::string& needle, const std::string& label)
+{
+    return expect(text.find(needle) != std::string::npos, label);
+}
+}
 
 int main()
 {
-    bool res;
-
-    std::cout << "[+] testPowershell" << std::endl;
-    res = testPowershell();
-    if (res)
-       std::cout << "[+] Sucess" << std::endl;
-    else
-       std::cout << "[-] Failed" << std::endl;
-
-    return !res;
-}
-
-
-bool testPowershell()
-{
-#ifdef __linux__
-    // Module is Windows only; on Linux just ensure it can be instantiated.
-    std::unique_ptr<Powershell> powershell = std::make_unique<Powershell>();
-    (void)powershell;
-    return true;
-#else
-    std::unique_ptr<Powershell> powershell = std::make_unique<Powershell>();
+    bool ok = true;
 
     {
-        std::string testString = "test";
+        Powershell module;
+        std::vector<std::string> cmd = {"powershell"};
+        C2Message message;
 
-        std::vector<std::string> splitedCmd;
-        splitedCmd.push_back("powershellt");
-        splitedCmd.push_back("echo");
-        splitedCmd.push_back(testString);
-        splitedCmd.push_back("|");
-        splitedCmd.push_back("write-output");
-
-        C2Message c2Message;
-        C2Message c2RetMessage;
-        powershell->init(splitedCmd, c2Message);
-        powershell->process(c2Message, c2RetMessage);
-
-        std::string output = "\n\noutput:\n";
-        output += c2RetMessage.returnvalue();
-        output += "\n";
-        std::cout << output << std::endl;
-
-        if (c2RetMessage.returnvalue().compare(0, testString.length(), testString) == 0) 
-        {
-        } 
-        else 
-        {
-            return false;
-        }
+        ok &= expect(module.init(cmd, message) == -1, "missing command should be rejected");
     }
+
     {
-        std::vector<std::string> splitedCmd;
-        splitedCmd.push_back("powershellt");
-        splitedCmd.push_back("whoami /priv");
-        splitedCmd.push_back("|");
-        splitedCmd.push_back("write-output");
+        Powershell module;
+        std::vector<std::string> cmd = {"powershell", "Write-Output", "hello"};
+        C2Message message;
 
-        C2Message c2Message;
-        C2Message c2RetMessage;
-        powershell->init(splitedCmd, c2Message);
-        powershell->process(c2Message, c2RetMessage);
-
-        std::string output = "\n\noutput:\n";
-        output += c2RetMessage.returnvalue();
-        output += "\n";
-        std::cout << output << std::endl;
+        ok &= expect(module.init(cmd, message) == 0, "plain command should be accepted");
+        ok &= expectBaseMessage(message, "Write-Output hello ", "plain command");
+        ok &= expect(message.data().empty(), "plain command should not set script data");
+        ok &= expect(message.inputfile().empty(), "plain command should not set an input file");
     }
+
     {
-        std::string scriptFile = "HelloWorlModule.ps1";
+        Powershell module;
+        std::vector<std::string> cmd = {"powershell", "-i", "missing.ps1"};
+        C2Message message;
 
-        std::string script = R"(
-# Define the PrintHelloWorld function
-function PrintHelloWorld {
-    Write-Output "Hello, World!"
-}
-
-# Export the function to make it available to other scripts
-Export-ModuleMember -Function PrintHelloWorld
-)";
-        std::ofstream outFile(scriptFile);
-        if (!outFile) 
-        {
-            return false;
-        }
-        outFile << script;
-        outFile.close();
-            
-        std::vector<std::string> splitedCmd;
-        splitedCmd.push_back("powershellt");
-        splitedCmd.push_back("-i");
-        splitedCmd.push_back(scriptFile);
-
-        C2Message c2Message;
-        C2Message c2RetMessage;
-        powershell->init(splitedCmd, c2Message);
-        powershell->process(c2Message, c2RetMessage);
-
-        std::string output = "\n\noutput:\n";
-        output += c2RetMessage.returnvalue();
-        output += "\n";
-        std::cout << output << std::endl;
-
-        std::vector<std::string> splitedCmd1;
-        splitedCmd1.push_back("powershellt");
-        splitedCmd1.push_back("PrintHelloWorld");
-
-        C2Message c2Message1;
-        C2Message c2RetMessage1;
-        powershell->init(splitedCmd1, c2Message1);
-        powershell->process(c2Message1, c2RetMessage1);
-
-        std::string output1 = "\n\noutput:\n";
-        output1 += c2RetMessage1.returnvalue();
-        output1 += "\n";
-        std::cout << output1 << std::endl;
-
-        std::string toFind = "Hello, World!";
-        if (output1.find(toFind) != std::string::npos) 
-        {
-        } 
-        else 
-        {
-            return false;
-        }
+        ok &= expect(module.init(cmd, message) == -1, "missing import script should be rejected");
+        ok &= expectContains(message.returnvalue(), "Couldn't open file", "missing import script should explain the file error");
     }
 
-    return true;
+    {
+        Powershell module;
+        std::vector<std::string> cmd = {"powershell", "-s", "missing.ps1"};
+        C2Message message;
+
+        ok &= expect(module.init(cmd, message) == -1, "missing run script should be rejected");
+        ok &= expectContains(message.returnvalue(), "Couldn't open file", "missing run script should explain the file error");
+    }
+
+    {
+        const auto script = writeTempFile("c2core_powershell_import.ps1", "function Invoke-C2CoreTest { Write-Output \"import-ok\" }\n");
+        Powershell module;
+        std::vector<std::string> cmd = {"powershell", "-i", script.string()};
+        C2Message message;
+
+        ok &= expect(module.init(cmd, message) == 0, "existing import script should be accepted");
+        ok &= expectBaseMessage(message, "-i " + script.string() + " ", "import script");
+        ok &= expect(message.inputfile() == script.string(), "import script should pack input file");
+        ok &= expectContains(message.data(), "New-Module -ScriptBlock", "import script should be wrapped in New-Module");
+        ok &= expectContains(message.data(), "Invoke-C2CoreTest", "import script should include script content");
+        ok &= expectContains(message.data(), "Export-ModuleMember -Function * -Alias *;};", "import script should export module members");
+        std::filesystem::remove(script);
+    }
+
+    {
+        const auto script = writeTempFile("c2core_powershell_script.ps1", "Write-Output \"script-ok\"\n");
+        Powershell module;
+        std::vector<std::string> cmd = {"powershell", "-s", script.string()};
+        C2Message message;
+
+        ok &= expect(module.init(cmd, message) == 0, "existing run script should be accepted");
+        ok &= expectBaseMessage(message, "-s " + script.string() + " ", "run script");
+        ok &= expect(message.inputfile() == script.string(), "run script should pack input file");
+        ok &= expectContains(message.data(), "Invoke-Command -ScriptBlock", "run script should be wrapped in Invoke-Command");
+        ok &= expectContains(message.data(), "script-ok", "run script should include script content");
+        std::filesystem::remove(script);
+    }
+
+#ifdef _WIN32
+    {
+        Powershell module;
+        std::vector<std::string> cmd = {"powershell", "Write-Output", "\"c2core-powershell-exec\""};
+        C2Message message;
+        C2Message retMessage;
+
+        ok &= expect(module.init(cmd, message) == 0, "execution command should be accepted");
+        ok &= expect(module.process(message, retMessage) == 0, "execution command should process");
+        ok &= expectContains(retMessage.returnvalue(), "c2core-powershell-exec", "execution output should be captured");
+        ok &= expect(retMessage.cmd() == message.cmd(), "execution return message should preserve command");
+    }
+
+    {
+        const auto script = writeTempFile("c2core_powershell_exec_import.ps1", "function Invoke-C2CoreImported { Write-Output \"import-exec-ok\" }\n");
+        Powershell module;
+
+        {
+            std::vector<std::string> cmd = {"powershell", "-i", script.string()};
+            C2Message message;
+            C2Message retMessage;
+
+            ok &= expect(module.init(cmd, message) == 0, "import execution script should be accepted");
+            ok &= expect(module.process(message, retMessage) == 0, "import execution script should process");
+        }
+
+        {
+            std::vector<std::string> cmd = {"powershell", "Invoke-C2CoreImported"};
+            C2Message message;
+            C2Message retMessage;
+
+            ok &= expect(module.init(cmd, message) == 0, "imported function command should be accepted");
+            ok &= expect(module.process(message, retMessage) == 0, "imported function command should process");
+            ok &= expectContains(retMessage.returnvalue(), "import-exec-ok", "imported function output should be captured");
+        }
+
+        std::filesystem::remove(script);
+    }
 #endif
+
+    return ok ? 0 : 1;
 }
