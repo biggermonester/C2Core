@@ -1,11 +1,35 @@
 #include "../Script.hpp"
 #include "../../tests/TestHelpers.hpp"
 
+#include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <string>
+#include <thread>
 #include <vector>
 
 using namespace test_helpers;
+
+namespace
+{
+    std::filesystem::path writeTempFileWithExtension(const std::string& stem,
+                                                     const std::string& extension,
+                                                     const std::string& content)
+    {
+        const auto suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())
+            + "_" + std::to_string(std::hash<std::thread::id>{}(std::this_thread::get_id()));
+        const auto path = std::filesystem::temp_directory_path() / (stem + "_" + suffix + extension);
+        std::ofstream out(path, std::ios::binary);
+        out << content;
+        return path;
+    }
+
+    bool expectContains(const std::string& text, const std::string& needle, const std::string& message)
+    {
+        return expect(text.find(needle) != std::string::npos, message);
+    }
+}
 
 int main()
 {
@@ -40,6 +64,44 @@ int main()
         ok &= expect(message.data() == "echo script-test", "script content should be packed");
         std::filesystem::remove(script);
     }
+
+#ifdef _WIN32
+    {
+        const auto script = writeTempFileWithExtension(
+            "c2core_script_exec",
+            ".cmd",
+            "@echo off\r\n"
+            "echo script-stdout\r\n"
+            "echo script-stderr 1>&2\r\n");
+        Script module;
+        std::vector<std::string> cmd = {"script", script.string()};
+        C2Message message;
+        C2Message ret;
+
+        ok &= expect(module.init(cmd, message) == 0, "Windows cmd script should be accepted");
+        ok &= expect(module.process(message, ret) == 0, "Windows cmd script should execute");
+        ok &= expect(ret.instruction() == "script", "Windows cmd script should preserve instruction");
+        ok &= expectContains(ret.returnvalue(), "script-stdout", "Windows cmd script should capture stdout");
+        ok &= expectContains(ret.returnvalue(), "script-stderr", "Windows cmd script should capture stderr");
+        std::filesystem::remove(script);
+    }
+
+    {
+        const auto script = writeTempFileWithExtension(
+            "c2core_script_unsupported",
+            ".ps1",
+            "Write-Output unsupported\r\n");
+        Script module;
+        std::vector<std::string> cmd = {"script", script.string()};
+        C2Message message;
+        C2Message ret;
+
+        ok &= expect(module.init(cmd, message) == 0, "unsupported Windows script extension should still be transportable");
+        ok &= expect(module.process(message, ret) == 0, "unsupported Windows script extension should return cleanly");
+        ok &= expectContains(ret.returnvalue(), "Unsupported script type on Windows", "unsupported Windows script extension should explain the rule");
+        std::filesystem::remove(script);
+    }
+#endif
 
     return ok ? 0 : 1;
 }

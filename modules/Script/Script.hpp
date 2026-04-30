@@ -16,7 +16,7 @@ public:
     int process(C2Message& c2Message, C2Message& c2RetMessage);
     int osCompatibility() 
     {
-        return OS_LINUX;
+        return OS_LINUX | OS_WINDOWS;
     }
 
 private:
