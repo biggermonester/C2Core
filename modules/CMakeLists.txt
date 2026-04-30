@@ -59,10 +59,10 @@ add_subdirectory(EnumerateRdpSessions)
 #Pivot
 add_subdirectory(SpawnAs)
 add_subdirectory(PsExec)
+add_subdirectory(ReversePortForward)
 add_subdirectory(WmiExec)
 add_subdirectory(TaskScheduler)
 add_subdirectory(WinRM)
 add_subdirectory(DcomExec)
 add_subdirectory(CimExec)
 add_subdirectory(SshExec)
-

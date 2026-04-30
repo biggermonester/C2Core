@@ -2,6 +2,14 @@
 
 #include "ModuleCmd.hpp"
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#endif
+
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
@@ -55,9 +63,10 @@ private:
     bool ensureSocketLayer();
     void shutdownSocketLayer();
     void closeSocket(SocketHandle socket) const;
+    void closeLocalConnections();
+    void stopListener();
     void enqueueChunk(int connectionId, const std::string& data, bool closeEvent);
 
-// #if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS)
     bool sendAll(SocketHandle socket, const std::string& data) const;
     std::string receiveAvailable(SocketHandle socket, bool& closed) const;
     void pollLocalConnections();
@@ -66,7 +75,7 @@ private:
     int m_localPort;
     std::mutex m_localMutex;
     std::unordered_map<int, SocketHandle> m_localConnections;
-// #else
+
     struct RemoteConnection
     {
         int id;
@@ -89,7 +98,6 @@ private:
     std::mutex m_connectionsMutex;
     std::unordered_map<int, std::shared_ptr<RemoteConnection>> m_connections;
     std::condition_variable m_queueCv;
-// #endif
 
     int m_remotePort;
     bool m_socketLayerReady;
