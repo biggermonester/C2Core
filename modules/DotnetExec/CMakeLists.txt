@@ -15,7 +15,7 @@ target_link_libraries(DotnetExec )
 add_custom_command(TARGET DotnetExec POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy 
 $<TARGET_FILE:DotnetExec> "${C2_RUNTIME_MODULE_OUTPUT_DIR}/$<TARGET_FILE_NAME:DotnetExec>")
 
-if(C2CORE_BUILD_TESTS)
+if(C2CORE_BUILD_TESTS OR C2CORE_BUILD_FUNCTIONAL_TESTS)
     if(WIN32)
         find_program(C2_CSC_EXECUTABLE
             NAMES csc.exe
@@ -34,7 +34,11 @@ if(C2CORE_BUILD_TESTS)
                 VERBATIM)
             add_custom_target(dummyDotnetExecAssembly DEPENDS "${C2_DOTNETEXEC_DUMMY_EXE}")
         endif()
+    endif()
+endif()
 
+if(C2CORE_BUILD_TESTS)
+    if(WIN32)
         add_executable(testsDotnetExec tests/testsDotnetExec.cpp DotnetExec.cpp HostControl.cpp AssemblyManager.cpp AssemblyStore.cpp HostMalloc.cpp MemoryManager.cpp ../ModuleCmd/syscall.cpp ${SYSCALL_OBJ} tests/project.rc)
         if(C2_CSC_EXECUTABLE)
             add_dependencies(testsDotnetExec dummyDotnetExecAssembly)
@@ -50,4 +54,24 @@ if(C2CORE_BUILD_TESTS)
     $<TARGET_FILE:testsDotnetExec> "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsDotnetExec>")
 
     add_test(NAME testsDotnetExec COMMAND "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsDotnetExec>")
+endif()
+
+if(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    if(WIN32)
+        add_executable(testsDotnetExecFunctional tests/functional/testsDotnetExecFunctional.cpp DotnetExec.cpp HostControl.cpp AssemblyManager.cpp AssemblyStore.cpp HostMalloc.cpp MemoryManager.cpp ../ModuleCmd/syscall.cpp ${SYSCALL_OBJ})
+        if(C2_CSC_EXECUTABLE)
+            add_dependencies(testsDotnetExecFunctional dummyDotnetExecAssembly)
+            target_compile_definitions(testsDotnetExecFunctional PRIVATE C2_DOTNETEXEC_DUMMY_EXE="${C2_DOTNETEXEC_DUMMY_EXE}")
+        endif()
+    else()
+        add_executable(testsDotnetExecFunctional tests/functional/testsDotnetExecFunctional.cpp DotnetExec.cpp)
+    endif()
+    target_include_directories(testsDotnetExecFunctional PRIVATE ../tests)
+    target_link_libraries(testsDotnetExecFunctional )
+    set_property(TARGET testsDotnetExecFunctional PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+    add_custom_command(TARGET testsDotnetExecFunctional POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
+    $<TARGET_FILE:testsDotnetExecFunctional> "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsDotnetExecFunctional>")
+
+    add_test(NAME testsDotnetExecFunctional COMMAND "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsDotnetExecFunctional>")
+    set_tests_properties(testsDotnetExecFunctional PROPERTIES LABELS "functional;dotnetexec;local-exec" SKIP_RETURN_CODE 77)
 endif()

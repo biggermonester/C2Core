@@ -80,9 +80,15 @@ This is important because many modules keep the default `errorCode == -1` on suc
 
 Current module-level functional tests:
 
+- `testsAssemblyExecFunctional`
 - `testsCimExecFunctional`
 - `testsDcomExecFunctional`
+- `testsDotnetExecFunctional`
+- `testsEvasionFunctional`
 - `testsEnumerateRdpSessionsFunctional`
+- `testsInjectFunctional`
+- `testsPsExecFunctional`
+- `testsPwShFunctional`
 - `testsSpawnAsFunctional`
 - `testsSshExecFunctional`
 - `testsTaskSchedulerFunctional`
@@ -319,6 +325,58 @@ Notes:
 - `userpass` maps to `wmiExec -u`
 - `kerberos` maps to `wmiExec -k`
 - this test is Windows-only for real execution
+
+### AssemblyExec
+
+- `C2_FUNC_ASSEMBLYEXEC_PAYLOAD`
+- `C2_FUNC_ASSEMBLYEXEC_KIND`
+- `C2_FUNC_ASSEMBLYEXEC_MODE`
+- `C2_FUNC_ASSEMBLYEXEC_METHOD`
+- `C2_FUNC_ASSEMBLYEXEC_ARGS`
+- `C2_FUNC_ASSEMBLYEXEC_PROCESS`
+- `C2_FUNC_ASSEMBLYEXEC_SPOOFED_PARENT`
+
+### DotnetExec
+
+- `C2_FUNC_DOTNETEXEC_ASSEMBLY`
+- `C2_FUNC_DOTNETEXEC_KIND`
+- `C2_FUNC_DOTNETEXEC_NAME`
+- `C2_FUNC_DOTNETEXEC_TYPE`
+- `C2_FUNC_DOTNETEXEC_METHOD`
+- `C2_FUNC_DOTNETEXEC_ARGS`
+
+### Evasion
+
+- `C2_FUNC_EVASION_ACTION`
+- `C2_FUNC_EVASION_VALUE`
+- `C2_FUNC_EVASION_EXTRA`
+
+### Inject
+
+- `C2_FUNC_INJECT_PAYLOAD`
+- `C2_FUNC_INJECT_KIND`
+- `C2_FUNC_INJECT_PID`
+- `C2_FUNC_INJECT_METHOD`
+- `C2_FUNC_INJECT_ARGS`
+- `C2_FUNC_INJECT_PROCESS`
+- `C2_FUNC_INJECT_SYSCALL`
+
+### PsExec
+
+- `C2_FUNC_PSEXEC_AUTH`
+- `C2_FUNC_PSEXEC_TARGET`
+- `C2_FUNC_PSEXEC_SERVICE`
+- `C2_FUNC_PSEXEC_USER`
+- `C2_FUNC_PSEXEC_PASSWORD`
+
+### PwSh
+
+- `C2_FUNC_PWSH_MODE`
+- `C2_FUNC_PWSH_RUNNER`
+- `C2_FUNC_PWSH_TYPE`
+- `C2_FUNC_PWSH_COMMAND`
+- `C2_FUNC_PWSH_IMPORT`
+- `C2_FUNC_PWSH_SCRIPT`
 
 ## Module-Specific Intent
 

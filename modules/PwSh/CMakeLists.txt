@@ -29,3 +29,19 @@ if(C2CORE_BUILD_TESTS)
 
     add_test(NAME testsPwSh COMMAND "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsPwSh>")
 endif()
+
+if(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    if(WIN32)
+        add_executable(testsPwShFunctional tests/functional/testsPwShFunctional.cpp PwSh.cpp HostControl.cpp AssemblyManager.cpp AssemblyStore.cpp HostMalloc.cpp MemoryManager.cpp ../ModuleCmd/syscall.cpp ${SYSCALL_OBJ})
+    else()
+        add_executable(testsPwShFunctional tests/functional/testsPwShFunctional.cpp PwSh.cpp)
+    endif()
+    target_include_directories(testsPwShFunctional PRIVATE ../tests)
+    target_link_libraries(testsPwShFunctional )
+    set_property(TARGET testsPwShFunctional PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+    add_custom_command(TARGET testsPwShFunctional POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
+    $<TARGET_FILE:testsPwShFunctional> "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsPwShFunctional>")
+
+    add_test(NAME testsPwShFunctional COMMAND "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsPwShFunctional>")
+    set_tests_properties(testsPwShFunctional PROPERTIES LABELS "functional;pwsh;local-exec" SKIP_RETURN_CODE 77)
+endif()
