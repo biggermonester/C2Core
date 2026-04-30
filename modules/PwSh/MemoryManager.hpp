@@ -34,16 +34,16 @@ public:
 
     const std::vector<MemAllocEntry*>& getMallocList()
     {
-        return m_mallocManager->getMemAllocList();
+        return m_mallocList;
     }
 
 
 protected:
-    DWORD count;
+    volatile LONG count;
 
 private:
-    MyHostMalloc* m_mallocManager;
-
+    CRITICAL_SECTION m_allocListLock;
     std::vector<MemAllocEntry*> m_memAllocList;
+    std::vector<MemAllocEntry*> m_mallocList;
 
 };

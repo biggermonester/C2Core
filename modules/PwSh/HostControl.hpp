@@ -106,7 +106,7 @@ public:
     }
     
 protected:
-    DWORD count;
+    volatile LONG count;
 
 private:
     MyAssemblyManager* m_assemblyManager;

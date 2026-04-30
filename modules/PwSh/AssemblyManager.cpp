@@ -3,20 +3,24 @@
 
 MyAssemblyManager::MyAssemblyManager(void)
 {
-    count = 0;
+    count = 1;
     m_assemblyStore = new MyAssemblyStore();
 };
 
 
 MyAssemblyManager::~MyAssemblyManager(void)
 {
-    delete m_assemblyStore;
+    if (m_assemblyStore != NULL)
+        m_assemblyStore->Release();
 };
 
 
-HRESULT STDMETHODCALLTYPE MyAssemblyManager::QueryInterface(REFIID vTableGuid, void** ppv) 
+HRESULT STDMETHODCALLTYPE MyAssemblyManager::QueryInterface(REFIID vTableGuid, void** ppv)
 {
-    if (!IsEqualIID(vTableGuid, IID_IUnknown) && !IsEqualIID(vTableGuid, IID_IHostAssemblyManager)) 
+    if (ppv == NULL)
+        return E_POINTER;
+
+    if (!IsEqualIID(vTableGuid, IID_IUnknown) && !IsEqualIID(vTableGuid, IID_IHostAssemblyManager))
     {
         *ppv = 0;
         return E_NOINTERFACE;
@@ -27,35 +31,43 @@ HRESULT STDMETHODCALLTYPE MyAssemblyManager::QueryInterface(REFIID vTableGuid, v
 }
 
 
-ULONG STDMETHODCALLTYPE MyAssemblyManager::AddRef() 
+ULONG STDMETHODCALLTYPE MyAssemblyManager::AddRef()
 {
-    return(++((MyAssemblyManager*)this)->count);
+    return static_cast<ULONG>(InterlockedIncrement(&count));
 }
 
 
-ULONG STDMETHODCALLTYPE MyAssemblyManager::Release() 
+ULONG STDMETHODCALLTYPE MyAssemblyManager::Release()
 {
-    if (--((MyAssemblyManager*)this)->count == 0) 
+    ULONG refCount = static_cast<ULONG>(InterlockedDecrement(&count));
+    if (refCount == 0)
     {
-        GlobalFree(this);
+        delete this;
         return 0;
     }
-    return ((MyAssemblyManager*)this)->count;
+    return refCount;
 }
 
 
 // This returns a list of assemblies that we are telling the CLR that we want it to handle loading (when/if a load is requested for them)
 // We can just return NULL and we will always be asked to load the assembly, but we can tell the CLR to load it in our ProvideAssembly implementation
-HRESULT STDMETHODCALLTYPE MyAssemblyManager::GetNonHostStoreAssemblies(ICLRAssemblyReferenceList** ppReferenceList) 
+HRESULT STDMETHODCALLTYPE MyAssemblyManager::GetNonHostStoreAssemblies(ICLRAssemblyReferenceList** ppReferenceList)
 {
+    if (ppReferenceList == NULL)
+        return E_POINTER;
+
     *ppReferenceList = NULL;
     return S_OK;
 }
 
 
 //This is responsible for returning our IHostAssemblyStore implementation
-HRESULT STDMETHODCALLTYPE MyAssemblyManager::GetAssemblyStore(IHostAssemblyStore** ppAssemblyStore) 
+HRESULT STDMETHODCALLTYPE MyAssemblyManager::GetAssemblyStore(IHostAssemblyStore** ppAssemblyStore)
 {
+    if (ppAssemblyStore == NULL)
+        return E_POINTER;
+
+    m_assemblyStore->AddRef();
     *ppAssemblyStore = m_assemblyStore;
     return S_OK;
 }

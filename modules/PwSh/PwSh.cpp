@@ -114,15 +114,15 @@ int PwSh::clearCLR()
         m_pCorHost->Release();
         m_pCorHost = NULL;
     }
-    if(m_pCustomHostControl)
-    {
-        delete m_pCustomHostControl;
-        m_pCustomHostControl = NULL;
-    }
     if (m_pClrRuntimeHost)
     {
         m_pClrRuntimeHost->Release();
         m_pClrRuntimeHost = NULL;
+    }
+    if(m_pCustomHostControl)
+    {
+        m_pCustomHostControl->Release();
+        m_pCustomHostControl = NULL;
     }
     if(m_pRuntimeInfo)
     {

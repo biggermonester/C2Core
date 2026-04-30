@@ -3,7 +3,7 @@
 
 MyHostControl::MyHostControl(void)
 {
-    count = 0;
+    count = 1;
 
     m_assemblyManager = new MyAssemblyManager();
     m_memoryManager = new MyMemoryManager();
@@ -11,16 +11,21 @@ MyHostControl::MyHostControl(void)
 
 MyHostControl::~MyHostControl(void)
 {
-    delete m_assemblyManager;
-    delete m_memoryManager;
+    if (m_assemblyManager != NULL)
+        m_assemblyManager->Release();
+    if (m_memoryManager != NULL)
+        m_memoryManager->Release();
 };
 
 
-HRESULT STDMETHODCALLTYPE MyHostControl::QueryInterface(REFIID vTableGuid, void** ppv) 
+HRESULT STDMETHODCALLTYPE MyHostControl::QueryInterface(REFIID vTableGuid, void** ppv)
 {
     // printf("MyHostControl_QueryInterface\n");
 
-    if (!IsEqualIID(vTableGuid, IID_IUnknown) && !IsEqualIID(vTableGuid, IID_IHostControl)) 
+    if (ppv == NULL)
+        return E_POINTER;
+
+    if (!IsEqualIID(vTableGuid, IID_IUnknown) && !IsEqualIID(vTableGuid, IID_IHostControl))
     {
         *ppv = 0;
         return E_NOINTERFACE;
@@ -31,24 +36,25 @@ HRESULT STDMETHODCALLTYPE MyHostControl::QueryInterface(REFIID vTableGuid, void*
 }
 
 
-ULONG STDMETHODCALLTYPE MyHostControl::AddRef() 
+ULONG STDMETHODCALLTYPE MyHostControl::AddRef()
 {
     // printf("MyHostControl_AddRef\n");
 
-    return(++((MyHostControl*)this)->count);
+    return static_cast<ULONG>(InterlockedIncrement(&count));
 }
 
 
-ULONG STDMETHODCALLTYPE MyHostControl::Release() 
+ULONG STDMETHODCALLTYPE MyHostControl::Release()
 {
     // printf("MyHostControl_Release\n");
 
-    if (--((MyHostControl*)this)->count == 0) 
+    ULONG refCount = static_cast<ULONG>(InterlockedDecrement(&count));
+    if (refCount == 0)
     {
-        GlobalFree(this);
+        delete this;
         return 0;
     }
-    return ((MyHostControl*)this)->count;
+    return refCount;
 }
 
 
@@ -58,10 +64,19 @@ HRESULT STDMETHODCALLTYPE MyHostControl::GetHostManager(REFIID riid, void** ppOb
 {
     // printf("MyHostControl_GetHostManager\n");
 
-    // Only the assembly manager is required; the custom memory manager can
-    // corrupt x86 CLR heap ownership during PowerShell runspace startup.
+    if (ppObject == NULL)
+        return E_POINTER;
+
+    if (IsEqualIID(riid, IID_IHostMemoryManager))
+    {
+        m_memoryManager->AddRef();
+        *ppObject = m_memoryManager;
+        return S_OK;
+    }
+
     if (IsEqualIID(riid, IID_IHostAssemblyManager))
     {
+        m_assemblyManager->AddRef();
         *ppObject = m_assemblyManager;
         return S_OK;
     }
@@ -71,11 +86,10 @@ HRESULT STDMETHODCALLTYPE MyHostControl::GetHostManager(REFIID riid, void** ppOb
 }
 
 
-// //This has some fun uses left as an exercise for the reader :) 
-HRESULT MyHostControl::SetAppDomainManager(DWORD dwAppDomainID, IUnknown* pUnkAppDomainManager) 
+// //This has some fun uses left as an exercise for the reader :)
+HRESULT MyHostControl::SetAppDomainManager(DWORD dwAppDomainID, IUnknown* pUnkAppDomainManager)
 {
     // printf("MyHostControl_SetAppDomainManager\n");
 
     return E_NOTIMPL;
 }
-
