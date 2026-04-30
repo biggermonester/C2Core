@@ -511,22 +511,6 @@ typedef HRESULT(WINAPI *funcCLRCreateInstance)
 static const GUID xCLSID_ICLRRuntimeHost = { 0x90F1A06E, 0x7712, 0x4762, {0x86, 0xB5, 0x7A, 0x5E, 0xBA, 0x6B, 0xDB, 0x02} };
 
 
-void* findStringInMemory(const char* target, void* startAddress, int lenght) 
-{
-    char* address = (char*)startAddress;
-    size_t targetLength = std::strlen(target);
-
-    for (size_t i = 0; i <= lenght - targetLength; ++i) 
-    {
-        if (std::memcmp(address + i, target, targetLength) == 0) 
-        {
-            return (void*)(address+i);
-        }
-    }
-    return nullptr;
-}
-
-
 // https://www.coresecurity.com/core-labs/articles/running-pes-inline-without-console
 // https://github.com/fortra/No-Consolation/blob/main/source/console.c
 // https://kiewic.github.io/set-a-breakpoint-in-managed-code-cs-using-windbg
@@ -630,13 +614,25 @@ int PwSh::initCLR()
     VARIANT exitPtr = {0};
     getFuncPtrMethodInfo->Invoke_3(methodHandleValue, getFuncPtrArgs, &exitPtr);
 
+#if defined(_M_ARM64) || defined(__aarch64__)
+    // ARM64: ret
+    BYTE patch[] = { 0xC0, 0x03, 0x5F, 0xD6 };
+#elif defined(_M_IX86) || defined(__i386__)
+    // x86: ret
+    BYTE patch[] = { 0xC3 };
+#elif defined(_M_X64) || defined(__x86_64__)
+    // x64: ret
+    BYTE patch[] = { 0xC3 };
+#else
+    #error Unsupported architecture
+#endif
+
     DWORD oldProt = 0;
-    BYTE patch = 0xC3;
 
-    VirtualProtect(exitPtr.byref, 1, PAGE_READWRITE, &oldProt);
-    memcpy(exitPtr.byref, &patch, 1);
-    VirtualProtect(exitPtr.byref, 1, oldProt, &oldProt); 
-
+    VirtualProtect(exitPtr.byref, sizeof(patch), PAGE_EXECUTE_READWRITE, &oldProt);
+    memcpy(exitPtr.byref, patch, sizeof(patch));
+    FlushInstructionCache(GetCurrentProcess(), exitPtr.byref, sizeof(patch));
+    VirtualProtect(exitPtr.byref, sizeof(patch), oldProt, &oldProt);
 
     return 0;
 }

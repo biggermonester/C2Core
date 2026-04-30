@@ -58,12 +58,8 @@ HRESULT STDMETHODCALLTYPE MyHostControl::GetHostManager(REFIID riid, void** ppOb
 {
     // printf("MyHostControl_GetHostManager\n");
 
-    if (IsEqualIID(riid, IID_IHostMemoryManager))
-    {
-        *ppObject = m_memoryManager;
-        return S_OK;
-    }
-
+    // Only the assembly manager is required; the custom memory manager can
+    // corrupt x86 CLR heap ownership during PowerShell runspace startup.
     if (IsEqualIID(riid, IID_IHostAssemblyManager))
     {
         *ppObject = m_assemblyManager;

