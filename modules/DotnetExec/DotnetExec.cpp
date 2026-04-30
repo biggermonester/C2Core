@@ -94,11 +94,6 @@ DotnetExec::~DotnetExec()
 int DotnetExec::clearCLR()
 {
 #ifdef _WIN32
-    if(m_targetAssembly)
-    {
-        delete m_targetAssembly;
-        m_targetAssembly = NULL;
-    }
     if(m_spDefaultAppDomain)
     {
         m_spDefaultAppDomain->Release();
@@ -133,6 +128,11 @@ int DotnetExec::clearCLR()
     {
         m_pMetaHost->Release();
         m_pMetaHost = NULL;
+    }
+    if(m_targetAssembly)
+    {
+        delete m_targetAssembly;
+        m_targetAssembly = NULL;
     }
     m_firstRun=true;
 #endif

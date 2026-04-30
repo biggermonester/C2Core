@@ -15,11 +15,11 @@ MyMemoryManager::MyMemoryManager(void)
 
 MyMemoryManager::~MyMemoryManager(void)
 {
-    DeleteCriticalSection(&m_allocListLock);
     for (auto entry : m_memAllocList)
         delete entry;
     for (auto entry : m_mallocList)
         delete entry;
+    DeleteCriticalSection(&m_allocListLock);
 }
 
 
