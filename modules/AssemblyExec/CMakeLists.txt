@@ -49,6 +49,8 @@ $<TARGET_FILE:AssemblyExec> "${C2_RUNTIME_MODULE_OUTPUT_DIR}/$<TARGET_FILE_NAME:
 
 if(C2CORE_BUILD_TESTS)
     if(WIN32)
+        add_executable(assemblyExecDummyExe tests/dummyAssemblyExec.cpp)
+
         if (CMAKE_GENERATOR_PLATFORM STREQUAL "ARM64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "^(ARM64|arm64|aarch64)$")
             add_executable(testsAssemblyExec
                 tests/testsAssemblyExec.cpp
@@ -90,6 +92,11 @@ if(C2CORE_BUILD_TESTS)
 
     add_custom_command(TARGET testsAssemblyExec POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy 
     $<TARGET_FILE:testsAssemblyExec> "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testsAssemblyExec>")
+
+    if(WIN32)
+        add_dependencies(testsAssemblyExec assemblyExecDummyExe)
+        target_compile_definitions(testsAssemblyExec PRIVATE C2_ASSEMBLYEXEC_DUMMY_EXE="$<TARGET_FILE:assemblyExecDummyExe>")
+    endif()
 
     add_custom_command(TARGET testOutputWriter POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy 
     $<TARGET_FILE:testOutputWriter> "${C2_TEST_BIN_OUTPUT_DIR}/$<TARGET_FILE_NAME:testOutputWriter>")
