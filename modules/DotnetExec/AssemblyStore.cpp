@@ -9,7 +9,7 @@
 
 MyAssemblyStore::MyAssemblyStore(void)
 {
-    count = 0;
+    count = 1;
     m_targetAssembly = nullptr;
 };
 
@@ -19,9 +19,12 @@ MyAssemblyStore::~MyAssemblyStore(void)
 };
 
 
-HRESULT STDMETHODCALLTYPE MyAssemblyStore::QueryInterface(REFIID vTableGuid, void** ppv) 
+HRESULT STDMETHODCALLTYPE MyAssemblyStore::QueryInterface(REFIID vTableGuid, void** ppv)
 {
-    if (!IsEqualIID(vTableGuid, IID_IUnknown) && !IsEqualIID(vTableGuid, IID_IHostAssemblyStore)) 
+    if (ppv == NULL)
+        return E_POINTER;
+
+    if (!IsEqualIID(vTableGuid, IID_IUnknown) && !IsEqualIID(vTableGuid, IID_IHostAssemblyStore))
     {
         *ppv = 0;
         return E_NOINTERFACE;
@@ -32,20 +35,21 @@ HRESULT STDMETHODCALLTYPE MyAssemblyStore::QueryInterface(REFIID vTableGuid, voi
 }
 
 
-ULONG STDMETHODCALLTYPE MyAssemblyStore::AddRef() 
+ULONG STDMETHODCALLTYPE MyAssemblyStore::AddRef()
 {
-    return(++((MyAssemblyStore*)this)->count);
+    return static_cast<ULONG>(InterlockedIncrement(&count));
 }
 
 
-ULONG STDMETHODCALLTYPE MyAssemblyStore::Release() 
+ULONG STDMETHODCALLTYPE MyAssemblyStore::Release()
 {
-    if (--((MyAssemblyStore*)this)->count == 0) 
+    ULONG refCount = static_cast<ULONG>(InterlockedDecrement(&count));
+    if (refCount == 0)
     {
-        GlobalFree(this);
+        delete this;
         return 0;
     }
-    return ((MyAssemblyStore*)this)->count;
+    return refCount;
 }
 
 
@@ -76,14 +80,14 @@ int MyAssemblyStore::updateTargetAssembly(ICLRAssemblyIdentityManager* identityM
 
 
 
-HRESULT STDMETHODCALLTYPE MyAssemblyStore::ProvideAssembly(AssemblyBindInfo* pBindInfo, UINT64* pAssemblyId, UINT64* pContext, IStream** ppStmAssemblyImage, IStream** ppStmPDB) 
+HRESULT STDMETHODCALLTYPE MyAssemblyStore::ProvideAssembly(AssemblyBindInfo* pBindInfo, UINT64* pAssemblyId, UINT64* pContext, IStream** ppStmAssemblyImage, IStream** ppStmPDB)
 {
     // std::cout << "MyAssemblyStore::ProvideAssembly " << std::endl;
     // std::wcout << "pBindInfo->lpPostPolicyIdentity     " << pBindInfo->lpPostPolicyIdentity << std::endl;
     // std::wcout << "m_targetAssembly->getAssemblyInfo() " << m_targetAssembly->getAssemblyInfo() << std::endl;
 
     // Check if the identity of the assembly being loaded is the one we want
-    if (m_targetAssembly!=nullptr && wcscmp(m_targetAssembly->getAssemblyInfo(), pBindInfo->lpPostPolicyIdentity) == 0) 
+    if (m_targetAssembly!=nullptr && wcscmp(m_targetAssembly->getAssemblyInfo(), pBindInfo->lpPostPolicyIdentity) == 0)
     {
         //This isn't used for anything here so just set it to 0
         *pContext = 0;
@@ -105,7 +109,7 @@ HRESULT STDMETHODCALLTYPE MyAssemblyStore::ProvideAssembly(AssemblyBindInfo* pBi
 
 
 // This shouldn't really get called but if it does we'll just tell the CLR to find it
-HRESULT STDMETHODCALLTYPE MyAssemblyStore::ProvideModule(ModuleBindInfo* pBindInfo,    DWORD* pdwModuleId,    IStream** ppStmModuleImage,    IStream** ppStmPDB) 
+HRESULT STDMETHODCALLTYPE MyAssemblyStore::ProvideModule(ModuleBindInfo* pBindInfo,    DWORD* pdwModuleId,    IStream** ppStmModuleImage,    IStream** ppStmPDB)
 {
     // std::cout << "MyAssemblyStore::ProvideModule" << std::endl;
 

@@ -33,7 +33,7 @@ public:
     };
 
 protected:    
-    DWORD count;
+    volatile LONG count;
 
 private:
     MyAssemblyStore* m_assemblyStore;

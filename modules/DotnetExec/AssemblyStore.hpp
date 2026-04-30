@@ -22,6 +22,8 @@ public:
     };
     ~TargetAssembly(void)
     {
+        if (m_assemblyStream != nullptr)
+            m_assemblyStream->Release();
         free(m_assemblyInfo);
     };
 
@@ -86,7 +88,7 @@ public:
     };
 
 protected:
-    DWORD count;
+    volatile LONG count;
 
 private:
     TargetAssembly* m_targetAssembly;

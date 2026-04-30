@@ -27,7 +27,7 @@ typedef struct _MemAllocEntry
 class MyHostMalloc : public IHostMalloc
 {
 public:
-    MyHostMalloc(void);
+    MyHostMalloc(HANDLE hHeap, IHostMemoryManager* owner, CRITICAL_SECTION* allocListLock, std::vector<MemAllocEntry*>* allocList);
     ~MyHostMalloc(void);
 
     virtual HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid,void  **ppv);
@@ -38,16 +38,17 @@ public:
     virtual HRESULT STDMETHODCALLTYPE DebugAlloc(SIZE_T cbSize, EMemoryCriticalLevel       eCriticalLevel, char* pszFileName, int         iLineNo, void** ppMem);
     virtual HRESULT STDMETHODCALLTYPE Free(void* pMem);
 
-    HANDLE hHeap;
-
     const std::vector<MemAllocEntry*>& getMemAllocList()
     {
-        return m_memAllocList;
+        return *m_memAllocList;
     }
 
 protected:
-    DWORD count;
+    volatile LONG count;
 
 private:
-    std::vector<MemAllocEntry*> m_memAllocList;
+    HANDLE m_hHeap;
+    IHostMemoryManager* m_owner;
+    CRITICAL_SECTION* m_allocListLock;
+    std::vector<MemAllocEntry*>* m_memAllocList;
 };

@@ -1,24 +1,44 @@
 #include "HostMalloc.hpp"
 #include "MemoryManager.hpp"
 
+#include <algorithm>
 #include <iostream>
+#include <new>
 
 
-MyHostMalloc::MyHostMalloc(void)
+MyHostMalloc::MyHostMalloc(HANDLE hHeap, IHostMemoryManager* owner, CRITICAL_SECTION* allocListLock, std::vector<MemAllocEntry*>* allocList)
 {
-    count = 0;
+    count = 1;
+    m_hHeap = hHeap;
+    m_owner = owner;
+    if (m_owner != NULL)
+        m_owner->AddRef();
+    m_allocListLock = allocListLock;
+    m_memAllocList = allocList;
 }
 
 
 MyHostMalloc::~MyHostMalloc(void)
 {
-    
+    if (m_hHeap != NULL)
+    {
+        ::HeapDestroy(m_hHeap);
+        m_hHeap = NULL;
+    }
+    if (m_owner != NULL)
+    {
+        m_owner->Release();
+        m_owner = NULL;
+    }
 }
 
 
-HRESULT STDMETHODCALLTYPE MyHostMalloc::QueryInterface(REFIID vTableGuid, void** ppv) 
+HRESULT STDMETHODCALLTYPE MyHostMalloc::QueryInterface(REFIID vTableGuid, void** ppv)
 {
-    if (!IsEqualIID(vTableGuid, IID_IUnknown) && !IsEqualIID(vTableGuid, IID_IHostMalloc)) 
+    if (ppv == NULL)
+        return E_POINTER;
+
+    if (!IsEqualIID(vTableGuid, IID_IUnknown) && !IsEqualIID(vTableGuid, IID_IHostMalloc))
     {
         *ppv = 0;
         return E_NOINTERFACE;
@@ -29,73 +49,99 @@ HRESULT STDMETHODCALLTYPE MyHostMalloc::QueryInterface(REFIID vTableGuid, void**
 }
 
 
-ULONG STDMETHODCALLTYPE MyHostMalloc::AddRef() 
+ULONG STDMETHODCALLTYPE MyHostMalloc::AddRef()
 {
-    return(++((MyHostMalloc*)this)->count);
+    return static_cast<ULONG>(InterlockedIncrement(&count));
 }
 
 
-ULONG STDMETHODCALLTYPE MyHostMalloc::Release() 
+ULONG STDMETHODCALLTYPE MyHostMalloc::Release()
 {
-    if (--this->count == 0) 
+    ULONG refCount = static_cast<ULONG>(InterlockedDecrement(&count));
+    if (refCount == 0)
     {
-        GlobalFree(this);
+        delete this;
         return 0;
     }
-    return this->count;
+    return refCount;
 }
 
 
-HRESULT STDMETHODCALLTYPE MyHostMalloc::Alloc(SIZE_T cbSize, EMemoryCriticalLevel eCriticalLevel, void** ppMem) 
+HRESULT STDMETHODCALLTYPE MyHostMalloc::Alloc(SIZE_T cbSize, EMemoryCriticalLevel eCriticalLevel, void** ppMem)
 {
-    LPVOID allocAddress = ::HeapAlloc(this->hHeap, 0, cbSize);
+    if (ppMem == NULL)
+        return E_POINTER;
+    *ppMem = NULL;
+
+    LPVOID allocAddress = ::HeapAlloc(m_hHeap, 0, cbSize);
     // std::cout << "MyHostMalloc::Alloc " << std::hex << allocAddress << std::endl;
 
-    MemAllocEntry* allocEntry = new MemAllocEntry();
+    if (allocAddress == NULL)
+        return E_OUTOFMEMORY;
+
+    MemAllocEntry* allocEntry = new (std::nothrow) MemAllocEntry();
+    if (allocEntry == NULL)
+    {
+        ::HeapFree(m_hHeap, 0, allocAddress);
+        return E_OUTOFMEMORY;
+    }
+
     allocEntry->Address = allocAddress;
     allocEntry->size = cbSize;
     allocEntry->type = MEM_ALLOC_MALLOC;
-    m_memAllocList.push_back(allocEntry);
 
-    *ppMem = allocAddress;
-    if (*ppMem == NULL) 
+    EnterCriticalSection(m_allocListLock);
+    try
     {
+        m_memAllocList->push_back(allocEntry);
+    }
+    catch (...)
+    {
+        LeaveCriticalSection(m_allocListLock);
+        delete allocEntry;
+        ::HeapFree(m_hHeap, 0, allocAddress);
         return E_OUTOFMEMORY;
     }
-    else 
-    {
-        return S_OK;
-    }
+    LeaveCriticalSection(m_allocListLock);
+
+    *ppMem = allocAddress;
+    return S_OK;
 }
 
 
-HRESULT STDMETHODCALLTYPE MyHostMalloc::DebugAlloc(SIZE_T cbSize, EMemoryCriticalLevel       eCriticalLevel, char* pszFileName, int         iLineNo, void** ppMem) 
+HRESULT STDMETHODCALLTYPE MyHostMalloc::DebugAlloc(SIZE_T cbSize, EMemoryCriticalLevel       eCriticalLevel, char* pszFileName, int         iLineNo, void** ppMem)
 {
     // std::cout << "MyHostMalloc::DebugAlloc" << std::endl;
 
-    *ppMem = ::HeapAlloc(this->hHeap, 0, cbSize);
-    if (*ppMem == NULL) 
-    {
-        return E_OUTOFMEMORY;
-    }
-    else 
-    {
-        return S_OK;
-    }
+    return Alloc(cbSize, eCriticalLevel, ppMem);
 }
 
 
-HRESULT STDMETHODCALLTYPE MyHostMalloc::Free(void* pMem) 
+HRESULT STDMETHODCALLTYPE MyHostMalloc::Free(void* pMem)
 {
     // std::cout << "MyHostMalloc::Free" << std::endl;
 
-    if (!::HeapValidate(this->hHeap, 0, pMem)) 
+    if (pMem == NULL)
+        return S_OK;
+
+    EnterCriticalSection(m_allocListLock);
+    auto it = std::find_if(m_memAllocList->begin(), m_memAllocList->end(), [pMem](const MemAllocEntry* entry) {
+        return entry != NULL && entry->Address == pMem;
+    });
+    if (!::HeapFree(m_hHeap, 0, pMem))
     {
-        // std::cout << "Detected corrupted heap" << std::endl;
-        return E_OUTOFMEMORY;
+        DWORD lastError = GetLastError();
+        LeaveCriticalSection(m_allocListLock);
+        return HRESULT_FROM_WIN32(lastError == ERROR_SUCCESS ? ERROR_INVALID_PARAMETER : lastError);
     }
-    ::HeapFree(this->hHeap, 0, pMem);
-    pMem = nullptr;
+
+    if (it != m_memAllocList->end())
+    {
+        MemAllocEntry* allocEntry = *it;
+        m_memAllocList->erase(it);
+        delete allocEntry;
+    }
+    LeaveCriticalSection(m_allocListLock);
 
     return S_OK;
 }
