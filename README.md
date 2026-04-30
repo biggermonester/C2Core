@@ -24,3 +24,5 @@ This repository is intended to be consumed from a parent repository as a shared 
 
 - The parent project owns the compiler toolchain and top-level CMake configuration.
 - Module tests are enabled by the parent through `C2CORE_BUILD_TESTS`.
+- Functional, env-driven module tests are enabled through `C2CORE_BUILD_FUNCTIONAL_TESTS`.
+- Test strategy, flags, and ready-to-run commands are documented in [TESTING.md](/mnt/e/Dev/C2Implant/core/TESTING.md).
