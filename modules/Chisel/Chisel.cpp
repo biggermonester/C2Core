@@ -12,6 +12,12 @@ constexpr unsigned long long moduleHash = djb2(moduleName);
 
 #define BUFSIZE 512
 
+namespace
+{
+    constexpr int ERROR_OPEN_PROCESS = 1;
+    constexpr int ERROR_CREATE_PROCESS = 2;
+}
+
 #ifdef _WIN32
 
 __declspec(dllexport) Chisel* A_ChiselConstructor() 
@@ -189,13 +195,22 @@ int Chisel::process(C2Message &c2Message, C2Message &c2RetMessage)
     {
         pid = c2Message.pid();
         HANDLE hProc=OpenProcess(PROCESS_ALL_ACCESS,FALSE,pid);
-        TerminateProcess(hProc,9);
+        if(hProc == NULL)
+        {
+            c2RetMessage.set_errorCode(ERROR_OPEN_PROCESS);
+            result = "OpenProcess failed.";
+        }
+        else
+        {
+            TerminateProcess(hProc,9);
+            CloseHandle(hProc);
+            result="Chisel stoped.\n";
+        }
 
         c2RetMessage.set_instruction(c2RetMessage.instruction());
         c2RetMessage.set_pid(pid);
         c2RetMessage.set_cmd("stop");
 
-        result="Chisel stoped.\n";
         c2RetMessage.set_returnvalue(result);
         return 0;
     }
@@ -226,6 +241,7 @@ int Chisel::process(C2Message &c2Message, C2Message &c2RetMessage)
     else
     {
          result += "CreateProcess failed.";
+         c2RetMessage.set_errorCode(ERROR_CREATE_PROCESS);
     }
 
 #endif
@@ -235,6 +251,17 @@ int Chisel::process(C2Message &c2Message, C2Message &c2RetMessage)
     c2RetMessage.set_cmd(c2Message.cmd());
     c2RetMessage.set_returnvalue(result);
 
+    return 0;
+}
+
+int Chisel::errorCodeToMsg(const C2Message &c2RetMessage, std::string &errorMsg)
+{
+#if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS) || defined(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    if (c2RetMessage.errorCode() > 0)
+    {
+        errorMsg = c2RetMessage.returnvalue();
+    }
+#endif
     return 0;
 }
 

@@ -18,6 +18,7 @@ public:
     int initConfig(const nlohmann::json &config);
     int init(std::vector<std::string>& splitedCmd, C2Message& c2Message);
     int process(C2Message& c2Message, C2Message& c2RetMessage);
+    int errorCodeToMsg(const C2Message& c2RetMessage, std::string& errorMsg) override;
     int osCompatibility() 
     {
         return OS_WINDOWS;

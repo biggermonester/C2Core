@@ -57,5 +57,19 @@ int main()
         ok &= expect(module.init(cmd, message) == -1, "missing command should be rejected");
     }
 
+    {
+        SpawnAs module;
+        C2Message message;
+        message.set_cmd("alice");
+        C2Message ret;
+
+        ok &= expect(module.process(message, ret) == -1, "invalid packed parameters should be rejected");
+        ok &= expect(ret.errorCode() > 0, "invalid packed parameters should set an error code");
+        ok &= expect(ret.returnvalue().find("Invalid command parameters") != std::string::npos, "invalid packed parameters should explain the error");
+        std::string errorMsg;
+        ok &= expect(module.errorCodeToMsg(ret, errorMsg) == 0, "invalid packed parameters should map error text");
+        ok &= expect(errorMsg == ret.returnvalue(), "invalid packed parameter error text should come from returnvalue");
+    }
+
     return ok ? 0 : 1;
 }

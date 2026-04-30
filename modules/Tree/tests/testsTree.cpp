@@ -79,7 +79,11 @@ bool testTree()
         tree->init(cmd, msg);
         msg.set_cmd(invalid.string());
         tree->process(msg, ret);
-        ok &= ret.returnvalue().empty();
+        std::string errorMsg;
+        tree->errorCodeToMsg(ret, errorMsg);
+        ok &= ret.errorCode() > 0;
+        ok &= ret.returnvalue().find("Error:") == 0;
+        ok &= errorMsg == ret.returnvalue();
     }
 
     // ----- no argument -----

@@ -14,6 +14,11 @@ using namespace std;
 constexpr std::string_view moduleName = "tree";
 constexpr unsigned long long moduleHash = djb2(moduleName);
 
+namespace
+{
+    constexpr int ERROR_TREE_DIRECTORY = 1;
+}
+
 
 #ifdef _WIN32
 
@@ -84,8 +89,23 @@ int Tree::process(C2Message &c2Message, C2Message &c2RetMessage)
 
     c2RetMessage.set_instruction(c2RetMessage.instruction());
     c2RetMessage.set_cmd(path);
+    if (outCmd.find("Error:") == 0)
+    {
+        c2RetMessage.set_errorCode(ERROR_TREE_DIRECTORY);
+    }
     c2RetMessage.set_returnvalue(outCmd);
 
+    return 0;
+}
+
+int Tree::errorCodeToMsg(const C2Message &c2RetMessage, std::string &errorMsg)
+{
+#if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS) || defined(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    if (c2RetMessage.errorCode() > 0)
+    {
+        errorMsg = c2RetMessage.returnvalue();
+    }
+#endif
     return 0;
 }
 
@@ -104,6 +124,14 @@ std::string Tree::iterProcess(const std::string& path, int depth)
             actualPath=std::filesystem::current_path().string();
 
         std::error_code e;
+        if (!std::filesystem::exists(actualPath, e))
+        {
+            result += "Error: ";
+            result += e ? e.message() : "path does not exist";
+            result += "\n";
+            return result;
+        }
+
         for (const filesystem::directory_entry& file : filesystem::directory_iterator(actualPath, e))
         {
             try

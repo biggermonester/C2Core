@@ -39,5 +39,16 @@ int main()
         ok &= expect(module.init(cmd, message) == -1, "ReadMemory should reject missing size");
     }
 
+    {
+        Evasion module;
+        C2Message ret;
+        ret.set_errorCode(1);
+        ret.set_returnvalue("Error opening remote process and thread.");
+        std::string errorMsg;
+
+        ok &= expect(module.errorCodeToMsg(ret, errorMsg) == 0, "evasion execution failure should map error text");
+        ok &= expect(errorMsg == ret.returnvalue(), "evasion execution error text should come from returnvalue");
+    }
+
     return ok ? 0 : 1;
 }

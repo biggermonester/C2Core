@@ -25,6 +25,11 @@ using namespace std;
 constexpr std::string_view moduleName = "coffLoader";
 constexpr unsigned long long moduleHash = djb2(moduleName);
 
+namespace
+{
+    constexpr int ERROR_COFF_EXECUTION = 1;
+}
+
 
 #ifdef _WIN32
 
@@ -130,8 +135,23 @@ int CoffLoader::process(C2Message &c2Message, C2Message &c2RetMessage)
     std::string result = coffLoader(payload, functionName, args);
 
     c2RetMessage.set_instruction(c2RetMessage.instruction());
+    if (result.find("Failed") != std::string::npos)
+    {
+        c2RetMessage.set_errorCode(ERROR_COFF_EXECUTION);
+    }
     c2RetMessage.set_returnvalue(result);
 
+    return 0;
+}
+
+int CoffLoader::errorCodeToMsg(const C2Message &c2RetMessage, std::string &errorMsg)
+{
+#if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS) || defined(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    if (c2RetMessage.errorCode() > 0)
+    {
+        errorMsg = c2RetMessage.returnvalue();
+    }
+#endif
     return 0;
 }
 

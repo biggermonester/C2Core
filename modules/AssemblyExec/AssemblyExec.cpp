@@ -38,6 +38,11 @@ using namespace std;
 constexpr std::string_view moduleName = "assemblyExec";
 constexpr unsigned long long moduleHash = djb2(moduleName);
 
+namespace
+{
+    constexpr int ERROR_PROCESS_CREATION = 1;
+}
+
 
 #ifdef _WIN32
 
@@ -319,19 +324,41 @@ int AssemblyExec::process(C2Message &c2Message, C2Message &c2RetMessage)
     if(!m_spoofedParent.empty())
         spoofedParent=m_spoofedParent;
 
+    int executionStatus = 0;
     if(m_isModeProcess && !m_isSpoofParent)
-        createNewProcess(payload, processToSpawn, result);
+        executionStatus = createNewProcess(payload, processToSpawn, result);
     else if(m_isModeProcess && m_isSpoofParent)
-        createNewProcessWithSpoofedParent(payload, processToSpawn, spoofedParent, result);
+        executionStatus = createNewProcessWithSpoofedParent(payload, processToSpawn, spoofedParent, result);
     else
-        createNewThread(payload, result);
+        executionStatus = createNewThread(payload, result);
 
 #endif
 
     c2RetMessage.set_instruction(c2RetMessage.instruction());
     c2RetMessage.set_cmd(c2Message.cmd());
+#ifdef _WIN32
+    if (executionStatus != 0)
+    {
+        if (result.empty())
+        {
+            result = "Error: Process failed to start.\n";
+        }
+        c2RetMessage.set_errorCode(ERROR_PROCESS_CREATION);
+    }
+#endif
     c2RetMessage.set_returnvalue(result);
     
+    return 0;
+}
+
+int AssemblyExec::errorCodeToMsg(const C2Message &c2RetMessage, std::string &errorMsg)
+{
+#if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS) || defined(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    if (c2RetMessage.errorCode() > 0)
+    {
+        errorMsg = c2RetMessage.returnvalue();
+    }
+#endif
     return 0;
 }
 

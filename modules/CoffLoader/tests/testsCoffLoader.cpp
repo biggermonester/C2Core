@@ -35,5 +35,16 @@ int main()
         std::filesystem::remove(coff);
     }
 
+    {
+        CoffLoader module;
+        C2Message ret;
+        ret.set_errorCode(1);
+        ret.set_returnvalue("Failed to run/parse the COFF file\n");
+        std::string errorMsg;
+
+        ok &= expect(module.errorCodeToMsg(ret, errorMsg) == 0, "COFF execution failure should map error text");
+        ok &= expect(errorMsg == ret.returnvalue(), "COFF execution error text should come from returnvalue");
+    }
+
     return ok ? 0 : 1;
 }

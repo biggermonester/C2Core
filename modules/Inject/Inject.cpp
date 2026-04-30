@@ -11,6 +11,12 @@ using namespace std;
 constexpr std::string_view moduleName = "inject";
 constexpr unsigned long long moduleHash = djb2(moduleName);
 
+namespace
+{
+    constexpr int ERROR_OPEN_PROCESS = 1;
+    constexpr int ERROR_CREATE_PROCESS = 2;
+}
+
 #ifdef _WIN32
 
 #include <tlhelp32.h>
@@ -423,8 +429,27 @@ int Inject::process(C2Message &c2Message, C2Message &c2RetMessage)
 
     c2RetMessage.set_instruction(c2RetMessage.instruction());
     c2RetMessage.set_cmd(c2Message.cmd());
+    if (result.find("OpenProcess failed.") != std::string::npos)
+    {
+        c2RetMessage.set_errorCode(ERROR_OPEN_PROCESS);
+    }
+    else if (result.find("CreateProcess failed.") != std::string::npos)
+    {
+        c2RetMessage.set_errorCode(ERROR_CREATE_PROCESS);
+    }
     c2RetMessage.set_returnvalue(result);
 
+    return 0;
+}
+
+int Inject::errorCodeToMsg(const C2Message &c2RetMessage, std::string &errorMsg)
+{
+#if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS) || defined(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    if (c2RetMessage.errorCode() > 0)
+    {
+        errorMsg = c2RetMessage.returnvalue();
+    }
+#endif
     return 0;
 }
 

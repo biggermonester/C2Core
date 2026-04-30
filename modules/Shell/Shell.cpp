@@ -94,6 +94,12 @@ int Shell::followUp(const C2Message &c2RetMessage)
 
 int Shell::errorCodeToMsg(const C2Message &c2RetMessage, std::string &errorMsg)
 {
+    if(c2RetMessage.errorCode() > 0)
+    {
+        errorMsg = c2RetMessage.returnvalue().empty()
+            ? "Failed to start shell."
+            : c2RetMessage.returnvalue();
+    }
     return 0;
 }
 
@@ -211,6 +217,7 @@ int Shell::process(C2Message &c2Message, C2Message &c2RetMessage)
         if(startShell() != 0)
         {
             c2RetMessage.set_errorCode(1);
+            c2RetMessage.set_returnvalue("Failed to start shell.");
             return 0;
         }
         if(cmd.empty())
@@ -279,6 +286,7 @@ int Shell::process(C2Message &c2Message, C2Message &c2RetMessage)
         if(startShell() != 0)
         {
             c2RetMessage.set_errorCode(1);
+            c2RetMessage.set_returnvalue("Failed to start shell.");
             return 0;
         }
         if(cmd.empty())

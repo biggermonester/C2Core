@@ -72,7 +72,11 @@ bool testListDirectory()
         c2Message.set_cmd(invalidPath);
         listDirectory->process(c2Message, c2RetMessage);
         std::cout << "invalid result: \n" << c2RetMessage.returnvalue() << std::endl;
-        if (c2RetMessage.returnvalue() != invalidPath + ":\n") {
+        std::string errorMsg;
+        listDirectory->errorCodeToMsg(c2RetMessage, errorMsg);
+        if (c2RetMessage.errorCode() <= 0
+            || c2RetMessage.returnvalue().find("Error:") != 0
+            || errorMsg != c2RetMessage.returnvalue()) {
             ok = false;
         }
     }

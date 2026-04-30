@@ -98,7 +98,11 @@ int main()
 
         ok &= expect(module.init(cmd, message) == 0, "unsupported Windows script extension should still be transportable");
         ok &= expect(module.process(message, ret) == 0, "unsupported Windows script extension should return cleanly");
+        ok &= expect(ret.errorCode() > 0, "unsupported Windows script extension should set an error code");
         ok &= expectContains(ret.returnvalue(), "Unsupported script type on Windows", "unsupported Windows script extension should explain the rule");
+        std::string errorMsg;
+        ok &= expect(module.errorCodeToMsg(ret, errorMsg) == 0, "unsupported Windows script extension should map error text");
+        ok &= expect(errorMsg == ret.returnvalue(), "unsupported Windows script error text should come from returnvalue");
         std::filesystem::remove(script);
     }
 #endif

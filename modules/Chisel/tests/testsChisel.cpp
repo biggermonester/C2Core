@@ -41,6 +41,21 @@ int main()
 
     {
         Chisel module;
+        C2Message message;
+        message.set_cmd("stop");
+        message.set_pid(2147483647);
+        C2Message ret;
+
+        ok &= expect(module.process(message, ret) == 0, "missing chisel pid should return through C2Message");
+        ok &= expect(ret.errorCode() > 0, "missing chisel pid should set an error code");
+        ok &= expect(ret.returnvalue().find("OpenProcess failed") != std::string::npos, "missing chisel pid should explain the failure");
+        std::string errorMsg;
+        ok &= expect(module.errorCodeToMsg(ret, errorMsg) == 0, "missing chisel pid should map error text");
+        ok &= expect(errorMsg == ret.returnvalue(), "missing chisel pid error text should come from returnvalue");
+    }
+
+    {
+        Chisel module;
         std::vector<std::string> cmd = {"chisel", "missing.exe", "client", "host:8000", "R:socks"};
         C2Message message;
 

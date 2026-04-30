@@ -108,6 +108,9 @@ int main()
         C2Message ret;
         branchOk &= test_helpers::expect(shell.process(message, ret) == 0, "missing shell process should return through C2Message");
         branchOk &= test_helpers::expect(ret.errorCode() == 1, "missing shell program should set error code 1");
+        std::string errorMsg;
+        branchOk &= test_helpers::expect(shell.errorCodeToMsg(ret, errorMsg) == 0, "missing shell program should map error text");
+        branchOk &= test_helpers::expect(errorMsg.find("Failed to start shell") != std::string::npos, "missing shell program should expose process error text");
         ok &= branchOk;
     }
 #endif
