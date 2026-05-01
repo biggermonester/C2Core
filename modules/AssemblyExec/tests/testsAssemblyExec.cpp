@@ -40,6 +40,7 @@ int main()
 {
     bool ok = true;
     const std::string dummyExe = dummyExePath();
+    const std::string currentArch = buildWindowsArch();
 
     {
         AssemblyExec module;
@@ -150,6 +151,7 @@ int main()
 
         {
             AssemblyExec module;
+            module.setWindowsArch(currentArch);
             std::vector<std::string> cmd = {"assemblyExec", "-e", dummyPath.string()};
             C2Message message;
 
@@ -159,6 +161,7 @@ int main()
 
         {
             AssemblyExec module;
+            module.setWindowsArch(currentArch);
             C2Message modeMessage;
             std::vector<std::string> modeCmd = {"assemblyExec", "thread"};
             ok &= expect(module.init(modeCmd, modeMessage) == -1, "thread mode should be configurable before Donut EXE mode");
@@ -173,6 +176,7 @@ int main()
 
         {
             AssemblyExec module;
+            module.setWindowsArch(currentArch);
             C2Message modeMessage;
             std::vector<std::string> modeCmd = {"assemblyExec", "processWithSpoofedParent"};
             ok &= expect(module.init(modeCmd, modeMessage) == -1, "spoofed-parent mode should be configurable before Donut EXE mode");

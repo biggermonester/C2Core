@@ -47,7 +47,6 @@ Chisel::~Chisel()
 {
 }
 
-// TODO add arch
 std::string Chisel::getInfo()
 {
     std::string info;
@@ -158,20 +157,7 @@ int Chisel::init(std::vector<std::string> &splitedCmd, C2Message &c2Message)
 
         std::string method;
         std::string payload;
-        std::string arch = "x64";
-
-// for tests
-#ifdef _WIN32
-    #if defined(_M_X64) || defined(__x86_64__)
-        arch = "x64";
-    #elif defined(_M_IX86) || defined(__i386__)
-        arch = "x86";
-    #elif defined(_M_ARM64) || defined(__aarch64__)
-        arch = "arm64";
-    #endif
-#endif
-
-        creatShellCodeDonut(inputFile, method, args, payload, true, false, arch);
+        creatShellCodeDonut(inputFile, method, args, payload, true, false, m_windowsArch);
 
         if(payload.size()==0)
         {

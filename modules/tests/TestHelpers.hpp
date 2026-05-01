@@ -60,4 +60,15 @@ namespace test_helpers
         out << content;
         return path;
     }
+
+    inline std::string buildWindowsArch()
+    {
+#if defined(_M_ARM64) || defined(__aarch64__)
+        return "arm64";
+#elif defined(_M_IX86) || defined(__i386__)
+        return "x86";
+#else
+        return "x64";
+#endif
+    }
 }

@@ -132,6 +132,7 @@ int main()
 {
     bool ok = true;
     const std::string dummyExe = dummyExePath();
+    const std::string currentArch = buildWindowsArch();
 
     {
         Inject module;
@@ -224,6 +225,7 @@ int main()
 
         {
             Inject module;
+            module.setWindowsArch(currentArch);
             std::vector<std::string> cmd = {"inject", "-e", dummyPath.string(), "1234", "alpha", "beta gamma"};
             C2Message message;
 

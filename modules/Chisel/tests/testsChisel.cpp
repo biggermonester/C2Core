@@ -9,6 +9,7 @@ using namespace test_helpers;
 int main()
 {
     bool ok = true;
+    const std::string currentArch = buildWindowsArch();
 
     {
         Chisel module;
@@ -59,6 +60,7 @@ int main()
 
     {
         Chisel module;
+        module.setWindowsArch(currentArch);
         std::vector<std::string> cmd = {"chisel", "missing.exe", "client", "host:8000", "R:socks"};
         C2Message message;
 

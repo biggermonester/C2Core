@@ -1,5 +1,9 @@
 #pragma once
 
+#if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS) || defined(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    #include <algorithm>
+    #include <cctype>
+#endif
 #include <iostream>
 #include <fstream>
 #include <memory>
@@ -31,6 +35,9 @@ public:
     {
         m_name=name;
         m_hash=hash;
+#if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS) || defined(C2CORE_BUILD_FUNCTIONAL_TESTS)
+        m_windowsArch="x64";
+#endif
     }
 
     ~ModuleCmd()
@@ -69,6 +76,31 @@ public:
 
     virtual std::string getInfo() = 0;
 
+#if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS) || defined(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    virtual int setWindowsArch(const std::string& windowsArch)
+    {
+        std::string normalizedArch = windowsArch;
+        std::transform(normalizedArch.begin(), normalizedArch.end(), normalizedArch.begin(), [](unsigned char c)
+        {
+            return static_cast<char>(std::tolower(c));
+        });
+
+        if(normalizedArch=="amd64" || normalizedArch=="x86_64")
+            normalizedArch="x64";
+        else if(normalizedArch=="i386" || normalizedArch=="i686")
+            normalizedArch="x86";
+        else if(normalizedArch=="aarch64")
+            normalizedArch="arm64";
+
+        if(normalizedArch=="x64" || normalizedArch=="x86" || normalizedArch=="arm64")
+            m_windowsArch=normalizedArch;
+        else
+            m_windowsArch="x64";
+
+        return 0;
+    }
+#endif
+
     // if an error ocurre:
     // set_returnvalue(errorMsg) && return -1
     virtual int init(std::vector<std::string>& splitedCmd, C2Message& c2Message) = 0;
@@ -90,6 +122,9 @@ protected:
     std::string m_windowsBeaconsDirectoryPath;
     std::string m_toolsDirectoryPath;
     std::string m_scriptsDirectoryPath;
+#if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS) || defined(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    std::string m_windowsArch;
+#endif
 
 private:
     
