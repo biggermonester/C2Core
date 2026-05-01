@@ -83,6 +83,11 @@ class CommonCommands
             return "";
     }
 
+    const std::string& getLastResolvedModulePath() const
+    {
+        return m_lastResolvedModulePath;
+    }
+
     std::string translateCmdToInstruction(const std::string& cmd)
     {
         std::string output;
@@ -159,6 +164,7 @@ class CommonCommands
         const std::string& windowsArch="x64")
     {
         std::string instruction = splitedCmd[0];
+        m_lastResolvedModulePath.clear();
 
         //
         // Sleep
@@ -286,6 +292,7 @@ class CommonCommands
 
                 // check if it's a Path
                 std::ifstream input;
+                std::string resolvedModulePath = inputFile;
                 input.open(inputFile, std::ios::binary);
 
                 // if not check if it's a filename present in the linux or windows directory
@@ -294,6 +301,7 @@ class CommonCommands
                     std::string newInputFile = m_linuxModulesDirectoryPath;
                     newInputFile+=inputFile;
                     input.open(newInputFile, std::ios::binary);
+                    resolvedModulePath = newInputFile;
                 }
                 else if(!input && isWindows)
                 {
@@ -305,11 +313,13 @@ class CommonCommands
                     }
                     newInputFile+=inputFile;
                     input.open(newInputFile, std::ios::binary);
+                    resolvedModulePath = newInputFile;
                 }
 
                 if( input ) 
                 {
                     std::string buffer(std::istreambuf_iterator<char>(input), {});
+                    m_lastResolvedModulePath = resolvedModulePath;
 
                     c2Message.set_instruction(LoadC2ModuleCmd);
                     c2Message.set_inputfile(inputFile);
@@ -402,6 +412,7 @@ private:
     std::string m_windowsBeaconsDirectoryPath;
     std::string m_toolsDirectoryPath;
     std::string m_scriptsDirectoryPath;
+    std::string m_lastResolvedModulePath;
 };
 
 
