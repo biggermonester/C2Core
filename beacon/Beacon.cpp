@@ -36,6 +36,24 @@ typedef ModuleCmd* (*constructProc)();
 #endif
 
 
+namespace
+{
+std::string getCurrentProcessArch()
+{
+#if defined(_M_IX86) || defined(__i386__)
+    return "x86";
+#elif defined(_M_X64) || defined(__x86_64__)
+    return "x64";
+#elif defined(_M_ARM64) || defined(__aarch64__)
+    return "arm64";
+#elif defined(_M_ARM) || defined(__arm__)
+    return "arm";
+#else
+    return "unknown";
+#endif
+}
+}
+
 
 #ifdef __linux__
 
@@ -248,7 +266,7 @@ Beacon::Beacon()
     m_additionalInfo += "\n";
     m_additionalInfo += unameData.machine;
 
-    m_arch = unameData.machine;
+    m_arch = getCurrentProcessArch();
 
     m_privilege = "user";
     if(m_username=="root")
@@ -313,31 +331,7 @@ Beacon::Beacon()
     else 
         m_username+="unknow";
 
-    SYSTEM_INFO systemInfo = { 0 };
-    GetNativeSystemInfo(&systemInfo);
-
-    switch (systemInfo.wProcessorArchitecture)
-    {
-    case PROCESSOR_ARCHITECTURE_AMD64:
-        m_arch = "x64";
-        break;
-
-    case PROCESSOR_ARCHITECTURE_INTEL:
-        m_arch = "x86";
-        break;
-
-    case PROCESSOR_ARCHITECTURE_ARM64:
-        m_arch = "arm64";
-        break;
-
-    case PROCESSOR_ARCHITECTURE_ARM:
-        m_arch = "arm";
-        break;
-
-    default:
-        m_arch = "unknown";
-        break;
-    }
+    m_arch = getCurrentProcessArch();
 
     m_os = "Windows";
 

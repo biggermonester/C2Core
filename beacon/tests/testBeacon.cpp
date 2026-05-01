@@ -16,6 +16,7 @@ public:
     void pushResult(const C2Message& msg) { m_taskResult.push(msg); }
     size_t resultCount() const { return m_taskResult.size(); }
     size_t taskCount() const { return m_tasks.size(); }
+    const std::string& arch() const { return m_arch; }
 };
 
 namespace {
@@ -30,6 +31,21 @@ namespace {
         }
         return true;
     }
+
+    std::string buildProcessArch()
+    {
+#if defined(_M_IX86) || defined(__i386__)
+        return "x86";
+#elif defined(_M_X64) || defined(__x86_64__)
+        return "x64";
+#elif defined(_M_ARM64) || defined(__aarch64__)
+        return "arm64";
+#elif defined(_M_ARM) || defined(__arm__)
+        return "arm";
+#else
+        return "unknown";
+#endif
+    }
 }
 
 int main()
@@ -39,6 +55,7 @@ int main()
     {
         BeaconTestProxy b;
         ok &= expect(b.initConfig(kConfig), "initConfig should parse xor key");
+        ok &= expect(b.arch() == buildProcessArch(), "beacon arch should report process architecture");
     }
     {
         BeaconTestProxy b;
