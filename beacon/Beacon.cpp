@@ -316,11 +316,30 @@ Beacon::Beacon()
     SYSTEM_INFO systemInfo = { 0 };
     GetNativeSystemInfo(&systemInfo);
 
-    m_arch = "x64";
-    if (systemInfo.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_INTEL)
-        m_arch = "x86";
+    switch (systemInfo.wProcessorArchitecture)
+    {
+    case PROCESSOR_ARCHITECTURE_AMD64:
+        m_arch = "x64";
+        break;
 
-        m_os = "Windows";
+    case PROCESSOR_ARCHITECTURE_INTEL:
+        m_arch = "x86";
+        break;
+
+    case PROCESSOR_ARCHITECTURE_ARM64:
+        m_arch = "arm64";
+        break;
+
+    case PROCESSOR_ARCHITECTURE_ARM:
+        m_arch = "arm";
+        break;
+
+    default:
+        m_arch = "unknown";
+        break;
+    }
+
+    m_os = "Windows";
 
     IntegrityLevel integrityLevel = GetCurrentProcessIntegrityLevel();
 
