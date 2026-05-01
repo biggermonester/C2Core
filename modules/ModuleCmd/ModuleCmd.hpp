@@ -36,7 +36,7 @@ public:
         m_name=name;
         m_hash=hash;
 #if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS) || defined(C2CORE_BUILD_FUNCTIONAL_TESTS)
-        m_windowsArch="x64";
+        m_windowsArch=defaultWindowsArch();
 #endif
     }
 
@@ -112,6 +112,19 @@ public:
     virtual int osCompatibility () {return OS_NONE;};
 
 protected:
+#if defined(BUILD_TEAMSERVER) || defined(C2CORE_BUILD_TESTS) || defined(C2CORE_BUILD_FUNCTIONAL_TESTS)
+    static std::string defaultWindowsArch()
+    {
+#if defined(_M_ARM64) || defined(__aarch64__)
+        return "arm64";
+#elif defined(_M_IX86) || defined(__i386__)
+        return "x86";
+#else
+        return "x64";
+#endif
+    }
+#endif
+
     std::string m_name;
     unsigned long long m_hash;
 
