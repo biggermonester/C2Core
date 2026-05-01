@@ -152,7 +152,11 @@ class CommonCommands
 
     // if an error ocurre:
     // set_returnvalue(errorMsg) && return -1
-    int init(std::vector<std::string> &splitedCmd, C2Message &c2Message, bool isWindows=true)
+    int init(
+        std::vector<std::string> &splitedCmd,
+        C2Message &c2Message,
+        bool isWindows=true,
+        const std::string& windowsArch="x64")
     {
         std::string instruction = splitedCmd[0];
 
@@ -294,6 +298,11 @@ class CommonCommands
                 else if(!input && isWindows)
                 {
                     std::string newInputFile = m_windowsModulesDirectoryPath;
+                    if (!windowsArch.empty())
+                    {
+                        newInputFile += windowsArch;
+                        newInputFile += "/";
+                    }
                     newInputFile+=inputFile;
                     input.open(newInputFile, std::ios::binary);
                 }
