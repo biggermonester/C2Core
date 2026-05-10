@@ -1,10 +1,17 @@
 #include "../AssemblyExec.hpp"
+#include "AssemblyExecTestShellcodeGenerator.hpp"
 #include "../../tests/TestHelpers.hpp"
 
 #include <filesystem>
+#include <cstdio>
+#include <cstring>
 #include <iostream>
 #include <string>
 #include <vector>
+
+#ifdef _WIN32
+#include "../../ModuleCmd/Tools.hpp"
+#endif
 
 using namespace test_helpers;
 
@@ -34,6 +41,42 @@ bool expectAssemblyMessage(const C2Message& message,
     ok &= expect(!message.data().empty(), label + ": payload should be non-empty");
     return ok;
 }
+
+bool expectPreparedDonutMessage(const std::filesystem::path& sourcePath,
+                                const std::string& mode,
+                                const std::string& method,
+                                const std::string& arguments,
+                                const std::string& arch,
+                                const std::string& expectedMode,
+                                const std::string& displayCommand,
+                                const std::string& label)
+{
+    bool ok = true;
+    const bool exitProcess = mode != "thread";
+    assembly_exec_tests::GeneratedShellcode generated = assembly_exec_tests::generateDonutShellcodeForTest(
+        sourcePath.string(),
+        method,
+        arguments,
+        arch,
+        exitProcess);
+    ok &= expect(generated.ok, label + ": Donut test shellcode should be generated: " + generated.error);
+    if (!ok)
+        return false;
+
+    AssemblyExec module;
+    ModulePreparedShellcodeTask task;
+    task.inputFile = generated.path.string();
+    task.payload = generated.bytes;
+    task.executionMode = mode;
+    task.displayCommand = displayCommand;
+
+    C2Message message;
+    ok &= expect(module.initPreparedShellcode(task, message) == 0, label + ": prepared shellcode should be packed");
+    ok &= expectAssemblyMessage(message, generated.path, expectedMode, displayCommand, label);
+    ok &= expect(message.data() == generated.bytes, label + ": generated shellcode bytes should be packed");
+    std::filesystem::remove(generated.path);
+    return ok;
+}
 }
 
 int main()
@@ -41,6 +84,22 @@ int main()
     bool ok = true;
     const std::string dummyExe = dummyExePath();
     const std::string currentArch = buildWindowsArch();
+
+#ifdef _WIN32
+    {
+        StdCapture capture;
+        capture.BeginCapture();
+        const char* crtOutput = "crt-output\n";
+        std::fwrite(crtOutput, 1, std::strlen(crtOutput), stdout);
+        const char* winOutput = "win32-output\n";
+        DWORD written = 0;
+        WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), winOutput, static_cast<DWORD>(std::strlen(winOutput)), &written, nullptr);
+        capture.EndCapture();
+        const std::string captured = capture.GetCapture();
+        ok &= expect(captured.find("crt-output") != std::string::npos, "StdCapture should capture CRT stdout");
+        ok &= expect(captured.find("win32-output") != std::string::npos, "StdCapture should capture Win32 stdout handle");
+    }
+#endif
 
     {
         AssemblyExec module;
@@ -81,11 +140,11 @@ int main()
     {
         const auto raw = writeTempFile("c2core_assembly_raw.bin", "raw-bytes");
         AssemblyExec module;
-        std::vector<std::string> cmd = {"assemblyExec", "-r", raw.string()};
+        std::vector<std::string> cmd = {"assemblyExec", "--mode", "process", "--raw", raw.string()};
         C2Message message;
 
         ok &= expect(module.init(cmd, message) == 0, "existing raw shellcode file should be accepted");
-        ok &= expectAssemblyMessage(message, raw, "1", "-r", "raw process mode");
+        ok &= expectAssemblyMessage(message, raw, "1", "--raw", "raw process mode");
         ok &= expect(message.data() == "raw-bytes", "raw bytes should be packed");
         std::filesystem::remove(raw);
     }
@@ -126,7 +185,7 @@ int main()
         C2Message message;
 
         ok &= expect(module.init(cmd, message) == -1, "unknown payload option should be rejected");
-        ok &= expect(message.returnvalue().find("One of the tags") != std::string::npos, "unknown payload option should explain accepted tags");
+        ok &= expect(message.returnvalue().find("Unknown assemblyExec option") != std::string::npos, "unknown payload option should explain accepted tags");
     }
 
     {
@@ -136,6 +195,15 @@ int main()
 
         ok &= expect(module.init(cmd, message) == -1, "DLL mode without method should be rejected");
         ok &= expect(message.returnvalue().find("Method is mandatory") != std::string::npos, "DLL mode should explain missing method");
+    }
+
+    {
+        AssemblyExec module;
+        std::vector<std::string> cmd = {"assemblyExec", "--donut-exe", "payload.exe"};
+        C2Message message;
+
+        ok &= expect(module.init(cmd, message) == -1, "Donut mode should be rejected by module init");
+        ok &= expect(message.returnvalue().find("TeamServer shellcode service") != std::string::npos, "Donut mode should point to TeamServer shellcode service");
     }
 
     if (dummyExe.empty())
@@ -155,37 +223,41 @@ int main()
             std::vector<std::string> cmd = {"assemblyExec", "-e", dummyPath.string()};
             C2Message message;
 
-            ok &= expect(module.init(cmd, message) == 0, "dummy exe should be accepted by Donut EXE mode");
-            ok &= expectAssemblyMessage(message, dummyPath, "1", "-e", "dummy exe default process mode");
+            ok &= expect(module.init(cmd, message) == -1, "dummy exe Donut mode should be prepared by TeamServer");
+            ok &= expect(message.returnvalue().find("TeamServer shellcode service") != std::string::npos, "dummy exe Donut mode should explain TeamServer preparation");
+            ok &= expectPreparedDonutMessage(
+                dummyPath,
+                "process",
+                "",
+                "",
+                currentArch,
+                "1",
+                "--mode process --donut-exe " + dummyPath.string(),
+                "dummy exe TeamServer-prepared Donut process mode");
         }
 
         {
-            AssemblyExec module;
-            module.setWindowsArch(currentArch);
-            C2Message modeMessage;
-            std::vector<std::string> modeCmd = {"assemblyExec", "thread"};
-            ok &= expect(module.init(modeCmd, modeMessage) == -1, "thread mode should be configurable before Donut EXE mode");
-
-            std::vector<std::string> cmd = {"assemblyExec", "-e", dummyPath.string(), "alpha", "beta gamma"};
-            C2Message message;
-
-            ok &= expect(module.init(cmd, message) == 0, "dummy exe with arguments should be accepted by Donut EXE mode");
-            ok &= expectAssemblyMessage(message, dummyPath, "0", "alpha beta gamma", "dummy exe thread mode with args");
-            ok &= expect(message.cmd().find(dummyPath.string()) != std::string::npos, "dummy exe command should include input path");
+            ok &= expectPreparedDonutMessage(
+                dummyPath,
+                "thread",
+                "",
+                "alpha beta gamma",
+                currentArch,
+                "0",
+                "--mode thread --donut-exe " + dummyPath.string() + " -- alpha beta gamma",
+                "dummy exe TeamServer-prepared Donut thread mode with args");
         }
 
         {
-            AssemblyExec module;
-            module.setWindowsArch(currentArch);
-            C2Message modeMessage;
-            std::vector<std::string> modeCmd = {"assemblyExec", "processWithSpoofedParent"};
-            ok &= expect(module.init(modeCmd, modeMessage) == -1, "spoofed-parent mode should be configurable before Donut EXE mode");
-
-            std::vector<std::string> cmd = {"assemblyExec", "-e", dummyPath.string(), "--flag"};
-            C2Message message;
-
-            ok &= expect(module.init(cmd, message) == 0, "dummy exe should be accepted in spoofed-parent mode");
-            ok &= expectAssemblyMessage(message, dummyPath, "2", "--flag", "dummy exe spoofed-parent mode");
+            ok &= expectPreparedDonutMessage(
+                dummyPath,
+                "processWithSpoofedParent",
+                "",
+                "--flag",
+                currentArch,
+                "2",
+                "--mode processWithSpoofedParent --donut-exe " + dummyPath.string() + " -- --flag",
+                "dummy exe TeamServer-prepared Donut spoofed-parent mode");
         }
 
         {

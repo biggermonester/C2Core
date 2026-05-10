@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include <random>
@@ -43,6 +45,46 @@ const std::string StopSocksCmd = "SSO";
 const std::string CmdStatusSuccess = "Success";
 const std::string CmdStatusFail = "Fail";
 const std::string CmdModuleNotFound = "Module not loaded";
+
+static inline bool parseTcpListenerPort(const std::string& value, int& port)
+{
+    if (value.empty())
+        return false;
+
+    std::size_t parsed = 0;
+    try
+    {
+        int parsedPort = std::stoi(value, &parsed);
+        if (parsed != value.size() || parsedPort < 1 || parsedPort > 65535)
+            return false;
+        port = parsedPort;
+        return true;
+    }
+    catch (const std::exception&)
+    {
+        return false;
+    }
+}
+
+static inline bool parseSleepSeconds(const std::string& value, float& seconds)
+{
+    if (value.empty())
+        return false;
+
+    std::size_t parsed = 0;
+    try
+    {
+        float parsedSeconds = std::stof(value, &parsed);
+        if (parsed != value.size() || !std::isfinite(parsedSeconds) || parsedSeconds < 0.0f)
+            return false;
+        seconds = parsedSeconds;
+        return true;
+    }
+    catch (const std::exception&)
+    {
+        return false;
+    }
+}
 
 
 #ifdef BUILD_TEAMSERVER
@@ -131,8 +173,9 @@ class CommonCommands
         output += "  Examples:\n";
         output += "    - listener start tcp <IP> <port>\n";
         output += "    - listener start tcp 10.2.4.8 4444\n";
-        output += "    - listener start smb <IP/hostname> <pipename>\n";
-        output += "    - listener start smb pipename\n";
+        output += "  Port must be an integer between 1 and 65535.\n";
+        output += "    - listener start smb <pipename>\n";
+        output += "    - listener start smb pipe1\n";
     }
     else if (cmd == LoadC2ModuleCmd)
     {
@@ -173,14 +216,10 @@ class CommonCommands
         {
             if(splitedCmd.size()==2)
             {
-                float sleepTimeSec=5;
-                try 
+                float sleepTimeSec=0.0f;
+                if (!parseSleepSeconds(splitedCmd[1], sleepTimeSec))
                 {
-                    sleepTimeSec = atof(splitedCmd[1].c_str());
-                }
-                catch (const std::invalid_argument& ia) 
-                {
-                    std::cerr << "Invalid argument: " << ia.what() << '\n';
+                    c2Message.set_returnvalue("Error: Invalid sleep interval. Expected a numeric value greater than or equal to 0.");
                     return -1;
                 }
                 c2Message.set_instruction(SleepCmd);
@@ -214,13 +253,9 @@ class CommonCommands
                     {
                         std::string host = splitedCmd[3];
                         int port=-1;
-                        try 
+                        if (!parseTcpListenerPort(splitedCmd[4], port))
                         {
-                            port = std::atoi(splitedCmd[4].c_str());
-                        }
-                        catch (const std::invalid_argument& ia) 
-                        {
-                            std::cerr << "Invalid argument: " << ia.what() << '\n';
+                            c2Message.set_returnvalue("Error: Invalid TCP listener port. Expected an integer between 1 and 65535.");
                             return -1;
                         }
 
@@ -243,15 +278,14 @@ class CommonCommands
                 }
                 else if(splitedCmd[1]==StartInstruction && splitedCmd[2]==ListenerSmbType)
                 {
-                    if(splitedCmd.size()==5)
+                    if(splitedCmd.size()==4)
                     {
-                        std::string host = splitedCmd[3];
-                        std::string pipeName = splitedCmd[4];
+                        std::string pipeName = splitedCmd[3];
                         std::string cmd = StartCmd;
                         cmd+=" ";
                         cmd+=ListenerSmbType;
                         cmd+=" ";
-                        cmd+=host;
+                        cmd+="beacon";
                         cmd+=" ";
                         cmd+=pipeName;
                         c2Message.set_instruction(ListenerCmd);
@@ -259,7 +293,7 @@ class CommonCommands
                     }
                     else
                     {
-                        std::string errorMsg = "listener smb start: not enough arguments";
+                        std::string errorMsg = "Usage: listener start smb <pipe_name>";
                         c2Message.set_returnvalue(errorMsg);    
                         return -1;
                     }
@@ -299,6 +333,11 @@ class CommonCommands
                 if(!input && !isWindows)
                 {
                     std::string newInputFile = m_linuxModulesDirectoryPath;
+                    if (!windowsArch.empty())
+                    {
+                        newInputFile += windowsArch;
+                        newInputFile += "/";
+                    }
                     newInputFile+=inputFile;
                     input.open(newInputFile, std::ios::binary);
                     resolvedModulePath = newInputFile;

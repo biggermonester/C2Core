@@ -1,0 +1,32 @@
+{
+  "name": "kerberosUseTicket",
+  "display_name": "kerberosUseTicket",
+  "kind": "module",
+  "description": "Import a Kerberos ticket upload artifact into the current LUID.",
+  "command_template": "kerberosUseTicket {ticket_artifact:q}",
+  "target": "beacon",
+  "requires_session": true,
+  "platforms": ["windows"],
+  "archs": ["x86", "x64", "arm64"],
+  "args": [
+    {
+      "name": "ticket_artifact",
+      "type": "artifact",
+      "required": true,
+      "description": ".kirbi ticket artifact from UploadedArtifacts.",
+      "artifact_filter": {
+        "category": "upload",
+        "scope": "operator",
+        "target": "beacon",
+        "platform": "session.platform",
+        "arch": "session.arch",
+        "runtime": "file",
+        "name_contains": ".kirbi"
+      }
+    }
+  ],
+  "examples": [
+    "kerberosUseTicket ticket.kirbi"
+  ],
+  "source": "manifest"
+}

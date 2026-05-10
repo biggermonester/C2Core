@@ -1,0 +1,14 @@
+{
+  "name": "whoami",
+  "display_name": "whoami",
+  "kind": "module",
+  "description": "Print current user and group information from the beacon.",
+  "command_template": "whoami",
+  "target": "beacon",
+  "requires_session": true,
+  "platforms": ["windows", "linux"],
+  "archs": ["any"],
+  "args": [],
+  "examples": ["whoami"],
+  "source": "manifest"
+}

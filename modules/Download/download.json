@@ -1,0 +1,30 @@
+{
+  "name": "download",
+  "display_name": "download",
+  "kind": "module",
+  "description": "Download a remote file from the beacon.",
+  "command_template": "download {remote_path:q} {artifact_name:q?}",
+  "target": "beacon",
+  "requires_session": true,
+  "platforms": ["windows", "linux"],
+  "archs": ["any"],
+  "args": [
+    {
+      "name": "remote_path",
+      "type": "path",
+      "required": true,
+      "description": "Path of the file on the beacon."
+    },
+    {
+      "name": "artifact_name",
+      "type": "text",
+      "required": false,
+      "description": "Optional generated artifact filename hint. The TeamServer controls the storage path."
+    }
+  ],
+  "examples": [
+    "download /tmp/file.txt",
+    "download C:\\Temp\\file.txt file.txt"
+  ],
+  "source": "manifest"
+}

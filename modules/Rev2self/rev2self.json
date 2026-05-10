@@ -1,0 +1,16 @@
+{
+  "name": "rev2self",
+  "display_name": "rev2self",
+  "kind": "module",
+  "description": "Return the beacon to its original token context.",
+  "command_template": "rev2self",
+  "target": "beacon",
+  "requires_session": true,
+  "platforms": ["windows"],
+  "archs": ["x86", "x64", "arm64"],
+  "args": [],
+  "examples": [
+    "rev2self"
+  ],
+  "source": "manifest"
+}

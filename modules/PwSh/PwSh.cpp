@@ -159,25 +159,22 @@ std::string PwSh::getInfo()
     info += "The execution occurs within the current process.\n\n";
 
     info += "Usage:\n";
-    info += "  pwSh init <inputFile> <typeForDll>\n";
-    info += "      - Arguments are optional. If not provided, the default PowerShell instance DLL will be loaded.\n";
-    info += "      - The DLL must implment this methode: \"public string Invoke(string command)\".\n";
-    info += "      - Loads the PowerShell .NET assembly DLL into memory.\n";
-    info += "      - For DLLs, you must specify the fully qualified type name (e.g., Namespace.ClassName).\n\n";
+    info += "  pwSh init\n";
+    info += "      - Loads the fixed PowerShell runner DLL from Tools/Any/any/rdm.dll.\n";
+    info += "      - The runner type is fixed to rdm.rdm and must implement Invoke(string command).\n\n";
 
     info += "  pwSh run <cmd>\n";
     info += "      - Executes the given PowerShell command.\n\n";
 
 
-    info += "  pwSh import <modulePsPath>\n";
-    info += "      - Import the powersehll module (e.g., PowerView.ps1)\n\n";
+    info += "  pwSh import <scriptArtifact>\n";
+    info += "      - Import the powersehll module from Scripts/Windows or Scripts/Any (e.g., PowerView.ps1)\n\n";
 
-    info += "  pwSh script <scriptPath>\n";
-    info += "      - execute the powersehll script.\n\n";
+    info += "  pwSh script <scriptArtifact>\n";
+    info += "      - execute the powersehll script from Scripts/Windows or Scripts/Any.\n\n";
 
     info += "Examples:\n";
     info += "  pwSh init\n";
-    info += "  pwSh init customPS.dll CustomPS.PowerShell\n\n";
     info += "  pwSh run whoami\n";
     info += "  pwSh run $x = 4; Write-Output $x\n\n";
 
@@ -185,8 +182,8 @@ std::string PwSh::getInfo()
     info += "  - Assemblies are kept in memory and can be reused without reloading.\n";
     info += "  - Ensure the correct type and method names are specified when using custom DLLs.\n";
     info += "  - This module avoids writing files to disk, enhancing stealth.\n";
-    info += "  - If you run 'init' in a process where the CLR is already loaded, you may encounter:\n";
-    info += "    'Failed: DefaultAppDomain - Load_2'.\n";
+    info += "  - If you run 'init' in a process with an incompatible CLR/AppDomain already loaded,\n";
+    info += "    initialize PwSh from a fresh beacon process or a process without that CLR context.\n";
 #endif
     return info;
 }
@@ -946,7 +943,7 @@ int PwSh::errorCodeToMsg(const C2Message &c2RetMessage, std::string& errorMsg)
         else if(errorCode==ERROR_LOAD_ASSEMLBY_2)
             errorMsg = "Failed: IdentityMnaager - GetBindingIdentityFromStream";
         else if(errorCode==ERROR_LOAD_ASSEMLBY_3)
-            errorMsg = "Failed: DefaultAppDomain - Load_2";
+            errorMsg = "Failed: PwSh runner assembly could not be loaded in the current CLR AppDomain. This usually means the beacon process already has an incompatible CLR/AppDomain context; retry from a fresh beacon process or a process without an existing conflicting CLR. Original stage: DefaultAppDomain - Load_2";
         else if(errorCode==ERROR_LOAD_ASSEMLBY_4)
             errorMsg = "Failed: DefaultAppDomain - Load_3";
         else if(errorCode==ERROR_LOAD_ASSEMLBY_5)

@@ -1,0 +1,74 @@
+{
+  "name": "dotnetExec",
+  "display_name": "dotnetExec",
+  "kind": "module",
+  "description": "Load and execute .NET assemblies in memory. Assembly load inputs are resolved from Tools by the TeamServer.",
+  "command_template": "dotnetExec {action} {module_name:q} {assembly_artifact:q?} {type_or_method:q?} {arguments:raw?}",
+  "target": "beacon",
+  "requires_session": true,
+  "platforms": ["windows"],
+  "archs": ["x86", "x64", "arm64"],
+  "args": [
+    {
+      "name": "action",
+      "type": "enum",
+      "required": true,
+      "description": "DotnetExec action.",
+      "values": ["load", "runExe", "runDll"]
+    },
+    {
+      "name": "module_name",
+      "type": "text",
+      "required": true,
+      "description": "Short name for a loaded assembly."
+    },
+    {
+      "name": "assembly_artifact",
+      "type": "artifact",
+      "required": false,
+      "description": "Assembly tool artifact for load.",
+      "artifact_filters": [
+        {
+          "category": "tool",
+          "scope": "server",
+          "target": "teamserver",
+          "platform": "windows",
+          "arch": "session.arch",
+          "runtime": "any",
+          "format": "exe",
+          "name_contains": ".exe"
+        },
+        {
+          "category": "tool",
+          "scope": "server",
+          "target": "teamserver",
+          "platform": "windows",
+          "arch": "session.arch",
+          "runtime": "any",
+          "format": "dll",
+          "name_contains": ".dll"
+        }
+      ]
+    },
+    {
+      "name": "type_or_method",
+      "type": "text",
+      "required": false,
+      "description": "DLL type for load, or method name for runDll."
+    },
+    {
+      "name": "arguments",
+      "type": "text",
+      "required": false,
+      "description": "Optional runExe/runDll argument tail.",
+      "variadic": true
+    }
+  ],
+  "examples": [
+    "dotnetExec load seatbelt Seatbelt.exe",
+    "dotnetExec load tool Tool.dll Namespace.Type",
+    "dotnetExec runExe seatbelt -- -group=system",
+    "dotnetExec runDll tool Run arg1 arg2"
+  ],
+  "source": "manifest"
+}
