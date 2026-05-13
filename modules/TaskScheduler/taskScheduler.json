@@ -35,9 +35,12 @@
     },
     {
       "name": "-u",
-      "type": "flag",
+      "type": "credential",
       "required": false,
-      "description": "DOMAIN\\user for task registration."
+      "description": "DOMAIN\\user for task registration, or TeamServer credential reference cred:<id>.",
+      "credential_filter": {
+        "type": "password"
+      }
     },
     {
       "name": "-p",

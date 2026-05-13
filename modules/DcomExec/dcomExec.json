@@ -41,9 +41,12 @@
     },
     {
       "name": "-u",
-      "type": "flag",
+      "type": "credential",
       "required": false,
-      "description": "Username for explicit credentials."
+      "description": "Username for explicit credentials, or TeamServer credential reference cred:<id>.",
+      "credential_filter": {
+        "type": "password"
+      }
     },
     {
       "name": "-p",

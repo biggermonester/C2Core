@@ -18,9 +18,13 @@
     },
     {
       "name": "username",
-      "type": "text",
+      "type": "credential",
       "required": false,
-      "description": "DOMAIN\\Username for -u mode."
+      "description": "DOMAIN\\Username for -u mode, or TeamServer credential reference cred:<id>.",
+      "completion_parents": ["-u"],
+      "credential_filter": {
+        "type": "password"
+      }
     },
     {
       "name": "password",
