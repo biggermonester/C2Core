@@ -3,7 +3,7 @@
   "display_name": "spawnAs",
   "kind": "module",
   "description": "Spawn a command under explicit Windows credentials or a TeamServer vault credential reference.",
-  "command_template": "spawnAs [-d {d:q}] [-l {l}] [-p {p:flag}] [--with-profile {with_profile:flag}] [--no-profile {no_profile:flag}] [-w {w:flag}] [--show-window {show_window:flag}] [--netonly {netonly:flag}] {credential:q?} {username:q?} {password:q?} -- {command:raw}",
+  "command_template": "spawnAs [-d {d:q}] [-l {l}] [-p {p:flag}] [--with-profile {with_profile:flag}] [--no-profile {no_profile:flag}] [-w {w:flag}] [--show-window {show_window:flag}] [--netonly {netonly:flag}] [--vault {vault:q}] {username:q?} {password:q?} -- {command:raw}",
   "target": "beacon",
   "requires_session": true,
   "platforms": ["windows"],
@@ -59,10 +59,10 @@
       "description": "Use LOGON32_LOGON_NEW_CREDENTIALS."
     },
     {
-      "name": "credential",
+      "name": "--vault",
       "type": "credential",
       "required": false,
-      "description": "TeamServer credential reference, for example cred:<id>.",
+      "description": "TeamServer vault credential reference. The TeamServer resolves it to DOMAIN\\user and password before dispatch.",
       "credential_filter": {
         "type": "password"
       }
@@ -88,7 +88,7 @@
     }
   ],
   "examples": [
-    "spawnAs cred:credentialId -- powershell.exe -nop -w hidden",
+    "spawnAs --vault cred:credentialId -- powershell.exe -nop -w hidden",
     "spawnAs contoso\\alice P@ssw0rd -- powershell.exe -nop -w hidden",
     "spawnAs -d . -l 9 bob Password123 -- cmd.exe /c whoami"
   ],
